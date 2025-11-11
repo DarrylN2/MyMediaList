@@ -1,0 +1,57 @@
+---
+alwaysApply: true
+
+STACK & CONVENTIONS
+- Tech: Next.js (App Router, TypeScript), Tailwind, shadcn/ui, Supabase (Postgres + Auth), Drizzle ORM, Zod.
+- Package manager: npm (do NOT switch to pnpm/yarn).
+- Path alias: "@/*" (must work in both app and src).
+- Directory layout:
+  /web/app/**           -> routes (App Router)
+  /web/src/components   -> presentational components only
+  /web/src/actions      -> "use server" actions (CRUD, mutations) with Zod validation
+  /web/src/lib          -> util clients (supabase, fetchers, logger)
+  /web/src/db           -> drizzle config + schema
+  /web/src/types.ts     -> shared types (Media, Entry, etc.)
+- UI: only shadcn/ui + Tailwind. No other UI libraries.
+- Components must be presentational (props in, events out). No fetching inside components.
+- Use Next/Image for posters, with width/height provided. Include alt text and sensible aria labels.
+
+TYPE SAFETY & VALIDATION
+- TypeScript strict. Never use `any`; prefer `unknown` + Zod parse.
+- All server actions/route handlers validate inputs with Zod.
+- Dates stored as ISO strings (UTC). Client formatting via Intl.DateTimeFormat.
+
+AUTH & DB
+- Use Supabase auth cookies (httpOnly, sameSite=Lax). Never store tokens in localStorage.
+- Queries/mutations go through Drizzle. Avoid raw SQL unless necessary.
+- Assume RLS enabled; always use `auth.uid()`-scoped policies for entries.
+
+API & SERVER
+- Use App Router `route.ts` for external API proxies (TMDB/AniList). Normalize results to our `Media` shape.
+- Add `"use server"` at top of server action files. Never import server-only modules into client components.
+- Error handling: return safe messages; do not leak stack traces.
+
+SECURITY
+- Add security headers in middleware (CSP, Referrer-Policy, Frame-Options, Permissions-Policy, X-Content-Type-Options).
+- Rate-limit POST routes (middleware-based in dev).
+- Sanitize/escape user-provided notes on render.
+
+STYLE
+- Tailwind: rounded-2xl look; spacing via gap-6; container max-w-6xl.
+- No inline magic numbers; derive from Tailwind tokens.
+
+GIT
+- Conventional commits: feat|fix|chore|docs|refactor|test(scope): message.
+- Do not commit .env* or generated drizzle files with secrets.
+
+A11Y & PERF
+- Keyboard accessible controls; focus states visible.
+- Use loading skeletons for lists; prefer streaming where easy.
+- Avoid client components unless needed (forms, interactive widgets).
+
+DO NOT
+- Do not add MUI/Ant/etc.
+- Do not change package manager or tsconfig paths.
+- Do not fetch in components; use server actions or route handlers.
+
+---
