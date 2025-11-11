@@ -1,0 +1,32 @@
+export type MediaType = 'movie' | 'anime' | 'game'
+
+export type EntryStatus =
+  | 'Planning'
+  | 'Watching'
+  | 'Playing'
+  | 'Completed'
+  | 'Dropped'
+
+export type MediaProvider = 'tmdb' | 'anilist' | 'igdb'
+
+export interface Media {
+  id: string
+  type: MediaType
+  title: string
+  year?: number
+  posterUrl?: string
+  provider: MediaProvider
+  providerId: string
+}
+
+export interface Entry {
+  id: string
+  userId: string
+  mediaId: string
+  status: EntryStatus
+  rating?: number
+  startedAt?: Date | string
+  finishedAt?: Date | string
+  notes?: string
+  createdAt: Date | string
+}
