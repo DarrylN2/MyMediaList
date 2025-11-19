@@ -1,4 +1,4 @@
-export type MediaType = 'movie' | 'anime' | 'game'
+export type MediaType = 'movie' | 'anime' | 'game' | 'song'
 
 export type EntryStatus =
   | 'Planning'
@@ -7,7 +7,7 @@ export type EntryStatus =
   | 'Completed'
   | 'Dropped'
 
-export type MediaProvider = 'tmdb' | 'anilist' | 'igdb'
+export type MediaProvider = 'tmdb' | 'anilist' | 'igdb' | 'spotify'
 
 export interface Media {
   id: string
