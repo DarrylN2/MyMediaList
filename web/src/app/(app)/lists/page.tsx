@@ -29,6 +29,17 @@ type ListCard = {
   itemCount: number
 }
 
+type RatedItem = {
+  id: string
+  title: string
+  type: ListCategory
+  status: string
+  rating: number
+  ratedAt: string
+  note: string
+  coverUrl: string
+}
+
 const mockLists: ListCard[] = [
   {
     id: 'action-films',
@@ -70,6 +81,73 @@ const mockLists: ListCard[] = [
   },
 ]
 
+const mockRatings: RatedItem[] = [
+  {
+    id: 'matrix',
+    title: 'The Matrix',
+    type: 'movies',
+    status: 'Completed',
+    rating: 10,
+    ratedAt: 'Nov 20',
+    note: 'Cyberpunk perfection with endlessly rewatchable action.',
+    coverUrl: 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
+  },
+  {
+    id: 'aot',
+    title: 'Attack on Titan Final Season',
+    type: 'anime',
+    status: 'Watching',
+    rating: 10,
+    ratedAt: 'Nov 18',
+    note: 'Peak storytelling—every episode lands a gut punch.',
+    coverUrl:
+      'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498-C6FPmWm59CyP.jpg',
+  },
+  {
+    id: 'hades',
+    title: 'Hades',
+    type: 'games',
+    status: 'Playing',
+    rating: 9,
+    ratedAt: 'Nov 15',
+    note: 'Combat loop stays fresh even a hundred runs in.',
+    coverUrl:
+      'https://images.igdb.com/igdb/image/upload/t_cover_big/co4jni.jpg',
+  },
+  {
+    id: 'fullmetal',
+    title: 'Fullmetal Alchemist: Brotherhood',
+    type: 'anime',
+    status: 'Completed',
+    rating: 9,
+    ratedAt: 'Nov 12',
+    note: 'Tightly plotted, emotional, and endlessly quotable.',
+    coverUrl:
+      'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx5114-KJT9MGf4r7jz.jpg',
+  },
+  {
+    id: 'dune',
+    title: 'Dune: Part Two',
+    type: 'movies',
+    status: 'Completed',
+    rating: 9,
+    ratedAt: 'Nov 10',
+    note: 'Huge sci-fi spectacle with immaculate sound design.',
+    coverUrl: 'https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg',
+  },
+  {
+    id: 'stardew',
+    title: 'Stardew Valley',
+    type: 'games',
+    status: 'On break',
+    rating: 8,
+    ratedAt: 'Nov 08',
+    note: 'Comfort title—easy to get lost farming for hours.',
+    coverUrl:
+      'https://images.igdb.com/igdb/image/upload/t_cover_big/co2f39.jpg',
+  },
+]
+
 const badgeTone: Record<ListCategory, string> = {
   movies: 'bg-orange-100 text-orange-800 border-transparent',
   anime: 'bg-pink-100 text-pink-700 border-transparent',
@@ -101,6 +179,16 @@ export default function ListsPage() {
 
   const totalItems = useMemo(
     () => mockLists.reduce((sum, list) => sum + list.itemCount, 0),
+    [],
+  )
+  const sortedRatings = useMemo(
+    () =>
+      [...mockRatings].sort((first, second) => {
+        if (second.rating === first.rating) {
+          return second.ratedAt.localeCompare(first.ratedAt)
+        }
+        return second.rating - first.rating
+      }),
     [],
   )
 
@@ -238,6 +326,70 @@ export default function ListsPage() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="rounded-3xl border border-white/70 bg-white/95 p-6 shadow-md">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold">Top rated items</h2>
+            <p className="text-sm text-muted-foreground">
+              Ordered list of everything you have scored so far.
+            </p>
+          </div>
+          <Button variant="ghost" className="text-sm text-muted-foreground">
+            View history
+          </Button>
+        </div>
+
+        <div className="mt-6 divide-y divide-slate-200">
+          <div className="hidden grid-cols-[auto,1fr,120px,90px] gap-4 pb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid">
+            <span>Title</span>
+            <span>Summary</span>
+            <span>Status</span>
+            <span className="text-right">Rating</span>
+          </div>
+          {sortedRatings.map((item) => (
+            <div
+              key={item.id}
+              className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-[auto,1fr,120px,90px]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="relative h-12 w-12 overflow-hidden rounded-xl bg-muted">
+                  <Image
+                    src={item.coverUrl}
+                    alt={`${item.title} cover`}
+                    fill
+                    sizes="48px"
+                    className="object-cover"
+                  />
+                </div>
+                <div>
+                  <p className="font-medium leading-tight">{item.title}</p>
+                  <span className="text-xs capitalize text-muted-foreground">
+                    {item.type}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm text-muted-foreground">{item.note}</p>
+              </div>
+
+              <div className="flex items-center text-sm text-muted-foreground">
+                {item.status}
+              </div>
+
+              <div className="flex items-center justify-between sm:justify-end sm:text-right">
+                <span className="text-lg font-semibold text-foreground">
+                  {item.rating}/10
+                </span>
+                <span className="text-xs text-muted-foreground sm:ml-2">
+                  Rated {item.ratedAt}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
     </div>
   )
