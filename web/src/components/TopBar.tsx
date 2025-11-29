@@ -6,6 +6,16 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Search, Filter, User, Home } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { ProfileDialog } from '@/components/ProfileDialog'
+import { useAuth } from '@/context/AuthContext'
 
 export function TopBar() {
   const router = useRouter()
@@ -14,6 +24,8 @@ export function TopBar() {
   const [searchTerm, setSearchTerm] = useState(
     () => searchParams.get('query') ?? '',
   )
+  const [profileOpen, setProfileOpen] = useState(false)
+  const { status, user, switchView } = useAuth()
 
   useEffect(() => {
     if (pathname === '/search') {
@@ -32,6 +44,15 @@ export function TopBar() {
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     navigateToSearch()
+  }
+
+  const profileInitial = user?.username?.[0]?.toUpperCase()
+
+  const handleDialogChange = (isOpen: boolean) => {
+    setProfileOpen(isOpen)
+    if (!isOpen && status !== 'authenticated') {
+      switchView('login')
+    }
   }
 
   return (
@@ -85,9 +106,33 @@ export function TopBar() {
               <Button variant="ghost" asChild className="text-sm">
                 <Link href="/lists">My Lists</Link>
               </Button>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <User className="h-5 w-5" />
-              </Button>
+              <Dialog open={profileOpen} onOpenChange={handleDialogChange}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    {user ? (
+                      <span className="text-sm font-semibold">
+                        {profileInitial}
+                      </span>
+                    ) : (
+                      <User className="h-5 w-5" />
+                    )}
+                    <span className="sr-only">Open profile dialog</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm border-none bg-background/95 backdrop-blur-md shadow-2xl">
+                  <DialogHeader className="space-y-1 text-left">
+                    <DialogTitle>
+                      {user ? `Hi, ${user.username}` : 'Save your lists'}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {user
+                        ? 'Manage your account and saved lists.'
+                        : 'Log in or create a free account to sync across devices.'}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <ProfileDialog />
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </div>
