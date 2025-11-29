@@ -18,13 +18,41 @@ export default function MediaDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
-  const [status, setStatus] = useState<EntryStatus>('Planning')
-  const [rating, setRating] = useState<number>(0)
-  const [notes, setNotes] = useState('')
-
   // In real app, fetch media and entry by ID
   const media = mockMedia[0]
   const entry = mockEntries[0]
+
+  const [status, setStatus] = useState<EntryStatus>(entry?.status ?? 'Planning')
+  const [rating, setRating] = useState<number>(entry?.rating ?? 0)
+  const [notes, setNotes] = useState(entry?.notes ?? '')
+
+  const metadataCards = [
+    media.durationMinutes && {
+      label: 'Duration',
+      value: formatDuration(media.durationMinutes),
+    },
+    media.contentRating && {
+      label: 'PG Rating',
+      value: media.contentRating,
+    },
+    media.genres?.length && {
+      label: 'Genres',
+      value: media.genres.join(', '),
+    },
+    media.studios?.length && {
+      label: 'Studios',
+      value: media.studios.join(', '),
+    },
+  ].filter(Boolean) as { label: string; value: string }[]
+
+  const creativeSections = [
+    media.directors?.length && { label: 'Directors', people: media.directors },
+    media.writers?.length && {
+      label: 'Authors / Writers',
+      people: media.writers,
+    },
+    media.cast?.length && { label: 'Cast', people: media.cast },
+  ].filter(Boolean) as { label: string; people: string[] }[]
 
   if (!media) {
     return <div>Media not found</div>
@@ -49,7 +77,7 @@ export default function MediaDetailPage({
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div>
             <h1 className="mb-2 text-3xl font-bold">{media.title}</h1>
             <div className="flex items-center gap-2">
@@ -57,8 +85,35 @@ export default function MediaDetailPage({
                 <span className="text-muted-foreground">{media.year}</span>
               )}
               <Badge>{media.type}</Badge>
+              {media.contentRating && (
+                <Badge variant="secondary" className="uppercase tracking-wide">
+                  {media.contentRating}
+                </Badge>
+              )}
             </div>
           </div>
+
+          {media.description && (
+            <p className="text-base text-muted-foreground">
+              {media.description}
+            </p>
+          )}
+
+          {metadataCards.length > 0 && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {metadataCards.map((card) => (
+                <div
+                  key={card.label}
+                  className="rounded-2xl border border-slate-100 bg-white/70 p-4"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {card.label}
+                  </p>
+                  <p className="text-lg font-semibold">{card.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
 
           <Card>
             <CardHeader>
@@ -80,6 +135,8 @@ export default function MediaDetailPage({
                   rating={rating}
                   interactive
                   onRatingChange={setRating}
+                  maxRating={10}
+                  size="lg"
                 />
               </div>
 
@@ -98,6 +155,30 @@ export default function MediaDetailPage({
           </Card>
         </div>
       </div>
+
+      {creativeSections.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold">Creative Team</h2>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            {creativeSections.map((section) => (
+              <div key={section.label} className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">
+                  {section.label}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {section.people.map((person) => (
+                    <Badge key={person} variant="outline">
+                      {person}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {entry && (
         <Card>
@@ -124,4 +205,14 @@ export default function MediaDetailPage({
       )}
     </div>
   )
+}
+
+function formatDuration(minutes: number) {
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  if (hours === 0) {
+    return `${remainingMinutes} min`
+  }
+
+  return `${hours}h${remainingMinutes > 0 ? ` ${remainingMinutes}m` : ''}`
 }

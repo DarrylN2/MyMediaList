@@ -18,7 +18,7 @@ export function RatingStars({
   onRatingChange,
   size = 'md',
 }: RatingStarsProps) {
-  const stars = Math.round((rating / maxRating) * 5)
+  const clampedRating = Math.max(0, Math.min(rating, maxRating))
   const sizeClasses = {
     sm: 'h-4 w-4',
     md: 'h-5 w-5',
@@ -27,14 +27,13 @@ export function RatingStars({
 
   const handleClick = (index: number) => {
     if (interactive && onRatingChange) {
-      const newRating = ((index + 1) / 5) * maxRating
-      onRatingChange(Math.round(newRating))
+      onRatingChange(index + 1)
     }
   }
 
   return (
     <div className="flex items-center gap-1">
-      {Array.from({ length: 5 }).map((_, index) => (
+      {Array.from({ length: maxRating }).map((_, index) => (
         <button
           key={index}
           type="button"
@@ -49,7 +48,7 @@ export function RatingStars({
           <Star
             className={cn(
               sizeClasses[size],
-              index < stars
+              index < clampedRating
                 ? 'fill-yellow-400 text-yellow-400'
                 : 'fill-none text-muted-foreground',
             )}

@@ -240,6 +240,10 @@ export default function SearchPage() {
     }, 900)
   }
 
+  const handleSelect = (item: SearchResultItem) => {
+    router.push(`/media/${item.id}`)
+  }
+
   return (
     <div className="space-y-8 pb-12">
       <div className="rounded-3xl border bg-white/80 p-6 shadow-sm backdrop-blur">
@@ -316,6 +320,7 @@ export default function SearchPage() {
               key={category.id}
               category={category}
               onAdd={handleAdd}
+              onSelect={handleSelect}
               pendingId={pendingId}
             />
           ))}
@@ -329,11 +334,13 @@ interface SearchCategorySectionProps {
   category: SearchCategory
   pendingId: string | null
   onAdd: (item: SearchResultItem) => void
+  onSelect: (item: SearchResultItem) => void
 }
 
 function SearchCategorySection({
   category,
   onAdd,
+  onSelect,
   pendingId,
 }: SearchCategorySectionProps) {
   return (
@@ -361,6 +368,7 @@ function SearchCategorySection({
             item={item}
             isLoading={pendingId === item.id}
             onAdd={() => onAdd(item)}
+            onSelect={() => onSelect(item)}
           />
         ))}
       </div>
@@ -371,14 +379,32 @@ function SearchCategorySection({
 interface SearchResultCardProps {
   item: SearchResultItem
   onAdd: () => void
+  onSelect: () => void
   isLoading: boolean
 }
 
-function SearchResultCard({ item, onAdd, isLoading }: SearchResultCardProps) {
+function SearchResultCard({
+  item,
+  onAdd,
+  onSelect,
+  isLoading,
+}: SearchResultCardProps) {
   const TypeIcon = typeIconMap[item.type]
 
   return (
-    <div className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white/95 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg md:flex-row md:items-center">
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`View details for ${item.title}`}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect()
+        }
+      }}
+      className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white/95 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 md:flex-row md:items-center"
+    >
       <div className="flex flex-1 gap-4">
         <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100">
           {item.coverUrl ? (
@@ -430,7 +456,10 @@ function SearchResultCard({ item, onAdd, isLoading }: SearchResultCardProps) {
 
       <Button
         type="button"
-        onClick={onAdd}
+        onClick={(event) => {
+          event.stopPropagation()
+          onAdd()
+        }}
         disabled={isLoading}
         className="w-full rounded-full px-6 py-2 text-sm font-semibold md:w-auto"
       >

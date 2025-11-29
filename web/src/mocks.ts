@@ -10,6 +10,15 @@ export const mockMedia: Media[] = [
       'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
     provider: 'tmdb',
     providerId: '603',
+    description:
+      'A hacker learns about the true nature of reality and his role in the war against its controllers.',
+    durationMinutes: 136,
+    contentRating: 'R',
+    directors: ['Lana Wachowski', 'Lilly Wachowski'],
+    writers: ['Lilly Wachowski', 'Lana Wachowski'],
+    cast: ['Keanu Reeves', 'Laurence Fishburne', 'Carrie-Anne Moss'],
+    studios: ['Warner Bros.', 'Village Roadshow Pictures'],
+    genres: ['Sci-Fi', 'Action'],
   },
   {
     id: '2',

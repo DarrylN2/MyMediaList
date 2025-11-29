@@ -17,6 +17,14 @@ export interface Media {
   posterUrl?: string
   provider: MediaProvider
   providerId: string
+  description?: string
+  durationMinutes?: number
+  contentRating?: string
+  directors?: string[]
+  writers?: string[]
+  cast?: string[]
+  studios?: string[]
+  genres?: string[]
 }
 
 export interface Entry {
