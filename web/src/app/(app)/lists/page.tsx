@@ -61,7 +61,7 @@ const mockLists: ListCard[] = [
     coverUrl:
       'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498-C6FPmWm59CyP.jpg',
     previewItems: ['Attack on Titan', 'Fullmetal Alchemist', 'Jujutsu Kaisen'],
-    stat: { label: 'Items', value: '10', helper: 'Series saved' },
+    stat: { label: 'Avg Rating', value: '9.5/10', helper: '10 series logged' },
     type: 'anime',
     updatedAt: 'yesterday',
     itemCount: 10,
@@ -309,18 +309,34 @@ export default function ListsPage() {
                   className="hidden h-20 self-stretch sm:block"
                 />
 
-                <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end sm:text-right">
-                  <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                    {list.stat.label}
-                  </span>
-                  <span className="text-3xl font-semibold leading-tight text-foreground">
-                    {list.stat.value}
-                  </span>
-                  {list.stat.helper ? (
-                    <span className="text-xs text-muted-foreground">
-                      {list.stat.helper}
+                <div className="flex w-full items-center justify-between gap-6 sm:w-auto sm:flex-col sm:items-end sm:text-right">
+                  <div className="flex flex-col text-left sm:items-end sm:text-right">
+                    <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                      {list.stat.label}
                     </span>
-                  ) : null}
+                    <span className="text-3xl font-semibold leading-tight text-foreground">
+                      {list.stat.value}
+                    </span>
+                    {list.stat.helper ? (
+                      <span className="text-xs text-muted-foreground">
+                        {list.stat.helper}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-col text-left sm:items-end sm:text-right">
+                    <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Items
+                    </span>
+                    <span className="text-3xl font-semibold leading-tight text-foreground">
+                      {list.itemCount}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {list.itemCount === 1
+                        ? 'Item in this list'
+                        : 'Items in this list'}
+                    </span>
+                  </div>
                 </div>
               </article>
             ))}
