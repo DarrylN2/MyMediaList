@@ -1,13 +1,14 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { EmptyState } from '@/components/EmptyState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import type { MediaType } from '@/types'
+import { useAuth } from '@/context/AuthContext'
+import type { MediaProvider, MediaType } from '@/types'
 import type { LucideIcon } from 'lucide-react'
 import {
   Clapperboard,
@@ -19,6 +20,7 @@ import {
   Sparkles,
   Tv,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 type CategoryId = 'movies' | 'tv' | 'anime' | 'songs' | 'games'
 type CategoryFilter = 'all' | CategoryId
@@ -32,6 +34,8 @@ interface SearchResultItem {
   status?: string
   tags: string[]
   type: MediaType
+  provider?: MediaProvider
+  providerId?: string
 }
 
 interface SearchCategory {
@@ -136,9 +140,9 @@ const TV_CATEGORY_BASE: SearchCategory = {
 export default function SearchPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { user } = useAuth()
   const [activeFilter, setActiveFilter] = useState<CategoryFilter>('all')
   const [pendingId, setPendingId] = useState<string | null>(null)
-  const addTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [movieCategory, setMovieCategory] =
     useState<SearchCategory>(MOVIE_CATEGORY_BASE)
   const [tvCategory, setTvCategory] = useState<SearchCategory>(TV_CATEGORY_BASE)
@@ -146,14 +150,6 @@ export default function SearchPage() {
   const [error, setError] = useState<string | null>(null)
   const paramQuery = searchParams.get('query') ?? ''
   const searchQuery = searchParams.has('query') ? paramQuery : DEFAULT_QUERY
-
-  useEffect(() => {
-    return () => {
-      if (addTimerRef.current) {
-        clearTimeout(addTimerRef.current)
-      }
-    }
-  }, [])
 
   useEffect(() => {
     if (!searchParams.has('query')) {
@@ -314,17 +310,52 @@ export default function SearchPage() {
     })
   }
 
-  const handleAdd = (item: SearchResultItem) => {
-    if (addTimerRef.current) {
-      clearTimeout(addTimerRef.current)
+  const handleAdd = async (item: SearchResultItem) => {
+    if (!user) {
+      toast('Log in to add items to your list.')
+      return
+    }
+
+    if (!item.provider || !item.providerId) {
+      toast('Live saving is currently available for TMDB search results only.')
+      return
     }
 
     setPendingId(item.id)
-    console.log('Add to list:', item.title)
 
-    addTimerRef.current = setTimeout(() => {
+    try {
+      const response = await fetch('/api/list', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.email,
+          media: {
+            provider: item.provider,
+            providerId: item.providerId,
+            type: item.type,
+            title: item.title,
+            posterUrl: item.coverUrl,
+            description: item.description,
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to save entry.')
+      }
+
+      toast.success(`Added ${item.title} to your list.`)
+    } catch (error) {
+      console.error(error)
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to save entry.',
+      )
+    } finally {
       setPendingId((current) => (current === item.id ? null : current))
-    }, 900)
+    }
   }
 
   const handleSelect = (item: SearchResultItem) => {
@@ -558,7 +589,7 @@ function SearchResultCard({
         disabled={isLoading}
         className="w-full rounded-full px-6 py-2 text-sm font-semibold md:w-auto"
       >
-        {isLoading ? 'Added' : 'Add to list'}
+        {isLoading ? 'Saving…' : 'Add to list'}
       </Button>
     </div>
   )

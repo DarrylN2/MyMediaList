@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { mockEntries } from '@/mocks'
+import { useAuth } from '@/context/AuthContext'
+import { toast } from 'sonner'
 import type { EntryStatus, Media } from '@/types'
 
 interface ParsedMediaId {
@@ -24,14 +25,16 @@ export default function MediaDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
-  const entry = mockEntries[0]
+  const { user } = useAuth()
+  const userId = user?.email ?? null
 
   const [media, setMedia] = useState<Media | null>(null)
-  const [status, setStatus] = useState<EntryStatus>(entry?.status ?? 'Planning')
-  const [rating, setRating] = useState<number>(entry?.rating ?? 0)
-  const [notes, setNotes] = useState(entry?.notes ?? '')
+  const [status, setStatus] = useState<EntryStatus>('Planning')
+  const [rating, setRating] = useState<number>(0)
+  const [notes, setNotes] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     const parsed = parseMediaRouteId(id)
@@ -82,6 +85,64 @@ export default function MediaDetailPage({
     return () => controller.abort()
   }, [id])
 
+  useEffect(() => {
+    if (!userId) {
+      setStatus('Planning')
+      setRating(0)
+      setNotes('')
+      return
+    }
+
+    const parsed = parseMediaRouteId(id)
+    if (!parsed) {
+      return
+    }
+
+    const controller = new AbortController()
+
+    const loadEntry = async () => {
+      try {
+        const response = await fetch(
+          `/api/list?provider=${parsed.provider}&sourceId=${parsed.sourceId}&userId=${encodeURIComponent(
+            userId,
+          )}`,
+          { signal: controller.signal },
+        )
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.error ?? 'Failed to load saved entry.')
+        }
+
+        const payload = (await response.json()) as {
+          entry: { status?: EntryStatus; rating?: number; note?: string } | null
+        }
+
+        if (controller.signal.aborted) {
+          return
+        }
+
+        if (payload.entry) {
+          setStatus(payload.entry.status ?? 'Planning')
+          setRating(payload.entry.rating ?? 0)
+          setNotes(payload.entry.note ?? '')
+        } else {
+          setStatus('Planning')
+          setRating(0)
+          setNotes('')
+        }
+      } catch (fetchError) {
+        if ((fetchError as Error).name !== 'AbortError') {
+          console.error(fetchError)
+        }
+      }
+    }
+
+    loadEntry()
+
+    return () => controller.abort()
+  }, [id, userId])
+
   if (isLoading) {
     return (
       <div className="rounded-3xl border border-slate-100 bg-white/80 p-6 text-sm text-muted-foreground">
@@ -128,6 +189,67 @@ export default function MediaDetailPage({
     },
     media.cast?.length && { label: 'Cast', people: media.cast },
   ].filter(Boolean) as { label: string; people: string[] }[]
+
+  const handleSaveEntry = async () => {
+    if (!userId) {
+      toast('Log in to save entries.')
+      return
+    }
+
+    if (!media) {
+      toast('Media details are still loading.')
+      return
+    }
+
+    const parsed = parseMediaRouteId(id)
+    if (!parsed) {
+      toast('Unsupported media identifier.')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const response = await fetch('/api/list', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          media: {
+            provider: media.provider,
+            providerId: media.providerId,
+            type: media.type,
+            title: media.title,
+            posterUrl: media.posterUrl,
+            description: media.description,
+          },
+          entry: {
+            status,
+            rating,
+            note: notes,
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to save entry.')
+      }
+
+      toast.success('Entry saved to your list.')
+    } catch (error) {
+      console.error(error)
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to save entry.',
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const statusMediaType =
+    media.type === 'tv' || media.type === 'anime' || media.type === 'game'
+      ? media.type
+      : 'movie'
 
   return (
     <div className="space-y-6">
@@ -196,7 +318,7 @@ export default function MediaDetailPage({
                 <StatusSelect
                   value={status}
                   onChange={setStatus}
-                  mediaType={media.type}
+                  mediaType={statusMediaType}
                 />
               </div>
 
@@ -221,7 +343,22 @@ export default function MediaDetailPage({
                 />
               </div>
 
-              <Button className="w-full">Save Changes</Button>
+              <Button
+                className="w-full"
+                onClick={handleSaveEntry}
+                disabled={isSaving}
+              >
+                {isSaving
+                  ? 'Saving…'
+                  : user
+                    ? 'Save Changes'
+                    : 'Log in to save'}
+              </Button>
+              {!user && (
+                <p className="text-xs text-muted-foreground">
+                  Sign in to keep track of your progress.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -247,30 +384,6 @@ export default function MediaDetailPage({
                 </div>
               </div>
             ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {entry && (
-        <Card>
-          <CardHeader>
-            <h2 className="text-lg font-semibold">History</h2>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-sm">
-              <div>
-                <span className="font-medium">Started:</span>{' '}
-                {entry.startedAt
-                  ? new Date(entry.startedAt).toLocaleDateString()
-                  : 'Not started'}
-              </div>
-              <div>
-                <span className="font-medium">Finished:</span>{' '}
-                {entry.finishedAt
-                  ? new Date(entry.finishedAt).toLocaleDateString()
-                  : 'Not finished'}
-              </div>
-            </div>
           </CardContent>
         </Card>
       )}

@@ -53,6 +53,8 @@ interface SearchResultItem {
   coverUrl?: string
   tags: string[]
   type: SearchType
+  provider: 'tmdb'
+  providerId: string
 }
 
 export async function GET(request: NextRequest) {
@@ -149,6 +151,8 @@ function mapTmdbMovieToResult(movie: TmdbMovieResult): SearchResultItem {
       : undefined,
     tags,
     type: 'movie',
+    provider: 'tmdb',
+    providerId: String(movie.id),
   }
 }
 
@@ -173,6 +177,8 @@ function mapTmdbTvToResult(show: TmdbTvResult): SearchResultItem {
       : undefined,
     tags,
     type: 'tv',
+    provider: 'tmdb',
+    providerId: String(show.id),
   }
 }
 
