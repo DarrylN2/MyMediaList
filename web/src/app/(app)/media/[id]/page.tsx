@@ -9,8 +9,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { mockMedia, mockEntries } from '@/mocks'
-import type { EntryStatus } from '@/types'
+import { mockEntries } from '@/mocks'
+import type { EntryStatus, Media } from '@/types'
+
+interface ParsedMediaId {
+  provider: string
+  type: 'movie' | 'tv'
+  sourceId: string
+}
 
 export default function MediaDetailPage({
   params,
@@ -18,21 +24,87 @@ export default function MediaDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
-  // In real app, fetch media and entry by ID
-  const media = mockMedia[0]
   const entry = mockEntries[0]
 
+  const [media, setMedia] = useState<Media | null>(null)
   const [status, setStatus] = useState<EntryStatus>(entry?.status ?? 'Planning')
   const [rating, setRating] = useState<number>(entry?.rating ?? 0)
   const [notes, setNotes] = useState(entry?.notes ?? '')
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const parsed = parseMediaRouteId(id)
+
+    if (!parsed) {
+      setError('Unsupported media identifier.')
+      setIsLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setIsLoading(true)
+    setError(null)
+
+    const loadMedia = async () => {
+      try {
+        const response = await fetch(
+          `/api/media/${parsed.provider}/${parsed.sourceId}?type=${parsed.type}`,
+          { signal: controller.signal },
+        )
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.error ?? 'Failed to load media details.')
+        }
+
+        const payload = (await response.json()) as { media: Media }
+        if (!controller.signal.aborted) {
+          setMedia(payload.media)
+        }
+      } catch (fetchError) {
+        if ((fetchError as Error).name === 'AbortError') {
+          return
+        }
+        console.error(fetchError)
+        if (!controller.signal.aborted) {
+          setError('Unable to load media details. Please try again.')
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadMedia()
+
+    return () => controller.abort()
+  }, [id])
+
+  if (isLoading) {
+    return (
+      <div className="rounded-3xl border border-slate-100 bg-white/80 p-6 text-sm text-muted-foreground">
+        Fetching media details…
+      </div>
+    )
+  }
+
+  if (error || !media) {
+    return (
+      <div className="rounded-3xl border border-rose-100 bg-rose-50/80 p-6 text-sm text-rose-700">
+        {error ?? 'Media not found.'}
+      </div>
+    )
+  }
 
   const metadataCards = [
     media.durationMinutes && {
-      label: 'Duration',
+      label: media.type === 'tv' ? 'Episode length' : 'Duration',
       value: formatDuration(media.durationMinutes),
     },
     media.contentRating && {
-      label: 'PG Rating',
+      label: 'Rating',
       value: media.contentRating,
     },
     media.genres?.length && {
@@ -40,23 +112,22 @@ export default function MediaDetailPage({
       value: media.genres.join(', '),
     },
     media.studios?.length && {
-      label: 'Studios',
+      label: media.type === 'tv' ? 'Networks' : 'Studios',
       value: media.studios.join(', '),
     },
   ].filter(Boolean) as { label: string; value: string }[]
 
   const creativeSections = [
-    media.directors?.length && { label: 'Directors', people: media.directors },
+    media.directors?.length && {
+      label: 'Directors / Creators',
+      people: media.directors,
+    },
     media.writers?.length && {
       label: 'Authors / Writers',
       people: media.writers,
     },
     media.cast?.length && { label: 'Cast', people: media.cast },
   ].filter(Boolean) as { label: string; people: string[] }[]
-
-  if (!media) {
-    return <div>Media not found</div>
-  }
 
   return (
     <div className="space-y-6">
@@ -80,11 +151,11 @@ export default function MediaDetailPage({
         <div className="space-y-6">
           <div>
             <h1 className="mb-2 text-3xl font-bold">{media.title}</h1>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {media.year && (
                 <span className="text-muted-foreground">{media.year}</span>
               )}
-              <Badge>{media.type}</Badge>
+              <Badge className="uppercase">{media.type}</Badge>
               {media.contentRating && (
                 <Badge variant="secondary" className="uppercase tracking-wide">
                   {media.contentRating}
@@ -207,7 +278,44 @@ export default function MediaDetailPage({
   )
 }
 
-function formatDuration(minutes: number) {
+function parseMediaRouteId(routeId: string): ParsedMediaId | null {
+  const parts = routeId.split('-')
+  if (parts.length < 2) {
+    return null
+  }
+
+  const [provider, maybeType, maybeId] = parts
+  if (!provider) {
+    return null
+  }
+
+  if (provider !== 'tmdb') {
+    return null
+  }
+
+  if (maybeType === 'tv') {
+    if (!maybeId) {
+      return null
+    }
+    return { provider, type: 'tv', sourceId: maybeId }
+  }
+
+  if (maybeType === 'movie') {
+    const sourceId = parts.slice(2).join('-')
+    if (!sourceId) {
+      return null
+    }
+    return { provider, type: 'movie', sourceId }
+  }
+
+  return { provider, type: 'movie', sourceId: parts.slice(1).join('-') }
+}
+
+function formatDuration(minutes?: number) {
+  if (!minutes) {
+    return '—'
+  }
+
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = minutes % 60
   if (hours === 0) {
