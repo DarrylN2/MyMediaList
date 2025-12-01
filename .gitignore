@@ -13,3 +13,7 @@ coverage/
 .env.*
 .env.local
 pnpm-lock.yaml
+
+# docs
+docs/data-integration-plan.md
+docs/supabase-setup.md
