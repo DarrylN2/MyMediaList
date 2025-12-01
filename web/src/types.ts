@@ -1,4 +1,4 @@
-export type MediaType = 'movie' | 'anime' | 'game' | 'song'
+export type MediaType = 'movie' | 'tv' | 'anime' | 'game' | 'song'
 
 export type EntryStatus =
   | 'Planning'

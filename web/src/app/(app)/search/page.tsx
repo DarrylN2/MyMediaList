@@ -17,9 +17,10 @@ import {
   Music2,
   Search as SearchIcon,
   Sparkles,
+  Tv,
 } from 'lucide-react'
 
-type CategoryId = 'movies' | 'anime' | 'songs' | 'games'
+type CategoryId = 'movies' | 'tv' | 'anime' | 'songs' | 'games'
 type CategoryFilter = 'all' | CategoryId
 
 interface SearchResultItem {
@@ -40,45 +41,23 @@ interface SearchCategory {
   items: SearchResultItem[]
 }
 
+interface SearchApiResponse {
+  items: SearchResultItem[]
+  query: string
+  type: string
+}
+
 const DEFAULT_QUERY = 'Arcane'
 
 const typeIconMap: Record<MediaType, LucideIcon> = {
   movie: Clapperboard,
+  tv: Tv,
   anime: Sparkles,
   song: Music2,
   game: Gamepad2,
 }
 
-const SEARCH_COLLECTION: SearchCategory[] = [
-  {
-    id: 'movies',
-    title: 'Movies',
-    helper: 'Where Piltover and Zaun first collide on-screen',
-    items: [
-      {
-        id: 'arcane-series',
-        title: 'Arcane: League of Legends',
-        subtitle: '2021 • TV Series • Animated, Action',
-        description:
-          'Fortiche and Riot weave the origins of Vi, Jinx, Caitlyn, and Viktor.',
-        coverUrl:
-          'https://image.tmdb.org/t/p/w500/fqldf2t8ztS4BNP3cMB0DaZhXry.jpg',
-        status: 'In favourites',
-        tags: ['Netflix', '9 episodes'],
-        type: 'movie',
-      },
-      {
-        id: 'arcane-chronicles',
-        title: 'Arcane: Zaun Chronicles',
-        subtitle: '2023 • Special • Documentary',
-        description: "Behind-the-scenes look at Fortiche and Riot's collab.",
-        coverUrl:
-          'https://image.tmdb.org/t/p/w500/fqldf2t8ztS4BNP3cMB0DaZhXry.jpg',
-        tags: ['Featurette', 'Fortiche'],
-        type: 'movie',
-      },
-    ],
-  },
+const STATIC_COLLECTION: SearchCategory[] = [
   {
     id: 'anime',
     title: 'Anime',
@@ -134,10 +113,25 @@ const SEARCH_COLLECTION: SearchCategory[] = [
 const CATEGORY_FILTERS: { id: CategoryFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'movies', label: 'Movies' },
+  { id: 'tv', label: 'TV Shows' },
   { id: 'anime', label: 'Anime' },
   { id: 'songs', label: 'Songs/Albums' },
   { id: 'games', label: 'Games' },
 ]
+
+const MOVIE_CATEGORY_BASE: SearchCategory = {
+  id: 'movies',
+  title: 'Movies',
+  helper: 'Live data from TMDB',
+  items: [],
+}
+
+const TV_CATEGORY_BASE: SearchCategory = {
+  id: 'tv',
+  title: 'TV Shows',
+  helper: 'Live data from TMDB',
+  items: [],
+}
 
 export default function SearchPage() {
   const router = useRouter()
@@ -145,6 +139,11 @@ export default function SearchPage() {
   const [activeFilter, setActiveFilter] = useState<CategoryFilter>('all')
   const [pendingId, setPendingId] = useState<string | null>(null)
   const addTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [movieCategory, setMovieCategory] =
+    useState<SearchCategory>(MOVIE_CATEGORY_BASE)
+  const [tvCategory, setTvCategory] = useState<SearchCategory>(TV_CATEGORY_BASE)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const paramQuery = searchParams.get('query') ?? ''
   const searchQuery = searchParams.has('query') ? paramQuery : DEFAULT_QUERY
 
@@ -164,10 +163,81 @@ export default function SearchPage() {
     }
   }, [router, searchParams])
 
-  const filteredCategories = useMemo(() => {
+  useEffect(() => {
+    const trimmedQuery = searchQuery.trim()
+
+    if (!trimmedQuery) {
+      setMovieCategory(MOVIE_CATEGORY_BASE)
+      setTvCategory(TV_CATEGORY_BASE)
+      setError(null)
+      setIsLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setMovieCategory(MOVIE_CATEGORY_BASE)
+    setTvCategory(TV_CATEGORY_BASE)
+    setIsLoading(true)
+    setError(null)
+
+    const fetchCategory = async (categoryType: 'movie' | 'tv') => {
+      try {
+        const response = await fetch(
+          `/api/search?type=${categoryType}&query=${encodeURIComponent(trimmedQuery)}`,
+          { signal: controller.signal },
+        )
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.error ?? 'TMDB search failed.')
+        }
+
+        const payload = (await response.json()) as SearchApiResponse
+
+        if (controller.signal.aborted) {
+          return
+        }
+
+        if (categoryType === 'movie') {
+          setMovieCategory((current) => ({
+            ...current,
+            items: payload.items,
+          }))
+        } else {
+          setTvCategory((current) => ({
+            ...current,
+            items: payload.items,
+          }))
+        }
+      } catch (fetchError) {
+        if ((fetchError as Error).name === 'AbortError') {
+          return
+        }
+        console.error(fetchError)
+        if (!controller.signal.aborted) {
+          setError(
+            (previous) =>
+              previous ?? 'Unable to load TMDB results. Try again in a moment.',
+          )
+        }
+      }
+    }
+
+    Promise.allSettled([fetchCategory('movie'), fetchCategory('tv')]).finally(
+      () => {
+        if (!controller.signal.aborted) {
+          setIsLoading(false)
+        }
+      },
+    )
+
+    return () => controller.abort()
+  }, [searchQuery])
+
+  const filteredStaticCategories = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
 
-    return SEARCH_COLLECTION.map((category) => {
+    return STATIC_COLLECTION.map((category) => {
       const items = query
         ? category.items.filter((item) =>
             item.title.toLowerCase().includes(query),
@@ -177,6 +247,22 @@ export default function SearchPage() {
       return { ...category, items }
     }).filter((category) => category.items.length > 0)
   }, [searchQuery])
+
+  const filteredCategories = useMemo(() => {
+    const categories: SearchCategory[] = []
+
+    if (movieCategory.items.length > 0) {
+      categories.push(movieCategory)
+    }
+
+    if (tvCategory.items.length > 0) {
+      categories.push(tvCategory)
+    }
+
+    categories.push(...filteredStaticCategories)
+
+    return categories
+  }, [movieCategory, tvCategory, filteredStaticCategories])
 
   const visibleCategories = useMemo(() => {
     if (activeFilter === 'all') {
@@ -197,6 +283,7 @@ export default function SearchPage() {
   const filterCounts: Record<CategoryFilter, number> = {
     all: totalMatches,
     movies: getCategoryCount('movies'),
+    tv: getCategoryCount('tv'),
     anime: getCategoryCount('anime'),
     songs: getCategoryCount('songs'),
     games: getCategoryCount('games'),
@@ -244,6 +331,8 @@ export default function SearchPage() {
     router.push(`/media/${item.id}`)
   }
 
+  const showEmptyState = !isLoading && visibleCategories.length === 0
+
   return (
     <div className="space-y-8 pb-12">
       <div className="rounded-3xl border bg-white/80 p-6 shadow-sm backdrop-blur">
@@ -257,6 +346,12 @@ export default function SearchPage() {
                 Results for {queryLabel}
               </h1>
               <p className="text-sm text-muted-foreground">{summaryText}</p>
+              {isLoading && (
+                <p className="text-xs text-muted-foreground">
+                  Fetching live TMDB results…
+                </p>
+              )}
+              {error && <p className="text-xs text-rose-600">{error}</p>}
             </div>
             <Badge className="rounded-full border border-indigo-100 bg-indigo-50 text-xs font-medium text-indigo-700">
               <Sparkles className="h-4 w-4" />
@@ -308,7 +403,7 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {visibleCategories.length === 0 ? (
+      {showEmptyState ? (
         <EmptyState
           title="No results found"
           description="We couldn't find anything with that combination. Try clearing filters or another title."
