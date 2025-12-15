@@ -9,6 +9,15 @@ import { StatusSelect } from '@/components/StatusSelect'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -34,6 +43,21 @@ import { toast } from 'sonner'
 
 type CategoryId = 'movies' | 'tv' | 'anime' | 'songs' | 'games'
 type CategoryFilter = 'all' | CategoryId
+
+function parseCategoryFilter(raw: string | null): CategoryFilter {
+  const value = (raw ?? 'all').toLowerCase()
+  if (value === 'all') return 'all'
+  if (
+    value === 'movies' ||
+    value === 'tv' ||
+    value === 'anime' ||
+    value === 'songs' ||
+    value === 'games'
+  ) {
+    return value
+  }
+  return 'all'
+}
 
 interface SearchResultItem {
   id: string
@@ -151,7 +175,9 @@ export default function SearchPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
-  const [activeFilter, setActiveFilter] = useState<CategoryFilter>('all')
+  const [activeFilter, setActiveFilter] = useState<CategoryFilter>(() =>
+    parseCategoryFilter(searchParams.get('category')),
+  )
   const [addOpen, setAddOpen] = useState(false)
   const [addItem, setAddItem] = useState<SearchResultItem | null>(null)
   const [listsLoading, setListsLoading] = useState(false)
@@ -179,10 +205,26 @@ export default function SearchPage() {
   const searchQuery = searchParams.has('query') ? paramQuery : DEFAULT_QUERY
 
   useEffect(() => {
+    const next = parseCategoryFilter(searchParams.get('category'))
+    setActiveFilter((prev) => (prev === next ? prev : next))
+  }, [searchParams])
+
+  const updateCategoryFilter = (next: CategoryFilter) => {
+    setActiveFilter(next)
+    const params = new URLSearchParams(searchParams.toString())
+    if (next === 'all') params.delete('category')
+    else params.set('category', next)
+    const queryString = params.toString()
+    router.replace(`/search${queryString ? `?${queryString}` : ''}`, {
+      scroll: false,
+    })
+  }
+
+  useEffect(() => {
     if (!searchParams.has('query')) {
-      router.replace(`/search?query=${encodeURIComponent(DEFAULT_QUERY)}`, {
-        scroll: false,
-      })
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('query', DEFAULT_QUERY)
+      router.replace(`/search?${params.toString()}`, { scroll: false })
     }
   }, [router, searchParams])
 
@@ -246,16 +288,25 @@ export default function SearchPage() {
       }
     }
 
-    Promise.allSettled([fetchCategory('movie'), fetchCategory('tv')]).finally(
-      () => {
-        if (!controller.signal.aborted) {
-          setIsLoading(false)
-        }
-      },
-    )
+    const shouldFetchMovie = activeFilter === 'all' || activeFilter === 'movies'
+    const shouldFetchTv = activeFilter === 'all' || activeFilter === 'tv'
+    const tasks: Array<Promise<void>> = []
+    if (shouldFetchMovie) tasks.push(fetchCategory('movie'))
+    if (shouldFetchTv) tasks.push(fetchCategory('tv'))
+
+    if (tasks.length === 0) {
+      setIsLoading(false)
+      return () => controller.abort()
+    }
+
+    Promise.allSettled(tasks).finally(() => {
+      if (!controller.signal.aborted) {
+        setIsLoading(false)
+      }
+    })
 
     return () => controller.abort()
-  }, [searchQuery])
+  }, [searchQuery, activeFilter])
 
   const filteredStaticCategories = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -574,15 +625,36 @@ export default function SearchPage() {
           </div>
 
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className="h-11 rounded-full border-dashed px-6"
-            >
-              <Filter className="h-4 w-4" />
-              Filters
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="h-11 rounded-full border-dashed px-6"
+                  aria-label="Open filters"
+                >
+                  <Filter className="h-4 w-4" />
+                  Filters
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuLabel>Search type</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup
+                  value={activeFilter}
+                  onValueChange={(value) =>
+                    updateCategoryFilter(value as CategoryFilter)
+                  }
+                >
+                  {CATEGORY_FILTERS.map((filter) => (
+                    <DropdownMenuRadioItem key={filter.id} value={filter.id}>
+                      {filter.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <div className="relative flex-1">
               <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -605,7 +677,7 @@ export default function SearchPage() {
                 variant={activeFilter === filter.id ? 'default' : 'ghost'}
                 className="rounded-full px-4"
                 disabled={filterCounts[filter.id] === 0}
-                onClick={() => setActiveFilter(filter.id)}
+                onClick={() => updateCategoryFilter(filter.id)}
               >
                 {filter.label}
                 <span className="ml-2 text-xs text-muted-foreground">

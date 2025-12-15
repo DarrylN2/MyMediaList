@@ -1,11 +1,20 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Search, Filter, User, Home } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -16,6 +25,41 @@ import {
 } from '@/components/ui/dialog'
 import { ProfileDialog } from '@/components/ProfileDialog'
 import { useAuth } from '@/context/AuthContext'
+
+type SearchCategoryFilter =
+  | 'all'
+  | 'movies'
+  | 'tv'
+  | 'anime'
+  | 'songs'
+  | 'games'
+
+const SEARCH_CATEGORY_OPTIONS: Array<{
+  id: SearchCategoryFilter
+  label: string
+}> = [
+  { id: 'all', label: 'All media' },
+  { id: 'movies', label: 'Movies' },
+  { id: 'tv', label: 'TV Shows' },
+  { id: 'anime', label: 'Anime' },
+  { id: 'songs', label: 'Songs/Albums' },
+  { id: 'games', label: 'Games' },
+]
+
+function parseCategoryFilter(raw: string | null): SearchCategoryFilter {
+  const value = (raw ?? 'all').toLowerCase()
+  if (value === 'all') return 'all'
+  if (
+    value === 'movies' ||
+    value === 'tv' ||
+    value === 'anime' ||
+    value === 'songs' ||
+    value === 'games'
+  ) {
+    return value
+  }
+  return 'all'
+}
 
 export function TopBar() {
   const router = useRouter()
@@ -28,13 +72,36 @@ export function TopBar() {
   const [searchTerm, setSearchTerm] = useState(
     () => searchParams.get('query') ?? '',
   )
+  const [category, setCategory] = useState<SearchCategoryFilter>(() =>
+    parseCategoryFilter(searchParams.get('category')),
+  )
   const [profileOpen, setProfileOpen] = useState(false)
   const { status, user, switchView } = useAuth()
 
+  useEffect(() => {
+    if (pathname !== '/search') return
+    const next = parseCategoryFilter(searchParams.get('category'))
+    setCategory((prev) => (prev === next ? prev : next))
+  }, [pathname, searchParams])
+
+  const setCategoryParam = (next: SearchCategoryFilter) => {
+    setCategory(next)
+
+    if (pathname !== '/search') return
+    const params = new URLSearchParams(searchParams.toString())
+    if (next === 'all') params.delete('category')
+    else params.set('category', next)
+    const qs = params.toString()
+    router.replace(`/search${qs ? `?${qs}` : ''}`)
+  }
+
   const navigateToSearch = () => {
     const trimmed = (pathname === '/search' ? queryFromUrl : searchTerm).trim()
-    const queryString = trimmed ? `?query=${encodeURIComponent(trimmed)}` : ''
-    router.push(`/search${queryString}`)
+    const params = new URLSearchParams()
+    if (trimmed) params.set('query', trimmed)
+    if (category !== 'all') params.set('category', category)
+    const qs = params.toString()
+    router.push(`/search${qs ? `?${qs}` : ''}`)
   }
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -71,15 +138,36 @@ export function TopBar() {
 
             {/* Search Box with Filter */}
             <form className="relative flex-1 max-w-2xl" onSubmit={handleSubmit}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute left-1.5 top-1/2 -translate-y-1/2 h-8 rounded-full border bg-background/90 px-3 text-xs font-medium text-muted-foreground hover:bg-muted"
-              >
-                <Filter className="mr-1.5 h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Filter</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute left-1.5 top-1/2 -translate-y-1/2 h-8 rounded-full border bg-background/90 px-3 text-xs font-medium text-muted-foreground hover:bg-muted"
+                    aria-label="Open search filters"
+                  >
+                    <Filter className="mr-1.5 h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Filter</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-52">
+                  <DropdownMenuLabel>Search type</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuRadioGroup
+                    value={category}
+                    onValueChange={(value) =>
+                      setCategoryParam(value as SearchCategoryFilter)
+                    }
+                  >
+                    {SEARCH_CATEGORY_OPTIONS.map((opt) => (
+                      <DropdownMenuRadioItem key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <button
                 type="submit"
                 className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted"
@@ -93,10 +181,10 @@ export function TopBar() {
                 onChange={(event) => {
                   if (pathname === '/search') {
                     const next = event.target.value
-                    const queryString = next.trim()
-                      ? `?query=${encodeURIComponent(next)}`
-                      : '?query='
-                    router.replace(`/search${queryString}`)
+                    const params = new URLSearchParams(searchParams.toString())
+                    params.set('query', next.trim() ? next : '')
+                    const qs = params.toString()
+                    router.replace(`/search${qs ? `?${qs}` : ''}`)
                     return
                   }
                   setSearchTerm(event.target.value)
