@@ -20,7 +20,20 @@ const getCategoryColor = (category: string) => {
 }
 
 export function StatsSection() {
-  let currentAngle = 0
+  const segments = mockStats.pieData.reduce<
+    Array<{
+      category: string
+      startAngle: number
+      endAngle: number
+      angle: number
+    }>
+  >((acc, item) => {
+    const angle = (item.percentage / 100) * 360
+    const startAngle = acc.length ? acc[acc.length - 1]!.endAngle : 0
+    const endAngle = startAngle + angle
+    acc.push({ category: item.category, startAngle, endAngle, angle })
+    return acc
+  }, [])
 
   return (
     <section className="py-8">
@@ -34,27 +47,26 @@ export function StatsSection() {
           <CardContent>
             <div className="flex items-center gap-6">
               <svg viewBox="0 0 100 100" className="h-32 w-32">
-                {mockStats.pieData.map((item) => {
-                  const percentage = item.percentage
-                  const angle = (percentage / 100) * 360
-                  const startAngle = currentAngle
-                  currentAngle += angle
-
+                {segments.map((segment) => {
                   const x1 =
-                    50 + 50 * Math.cos(((startAngle - 90) * Math.PI) / 180)
+                    50 +
+                    50 * Math.cos(((segment.startAngle - 90) * Math.PI) / 180)
                   const y1 =
-                    50 + 50 * Math.sin(((startAngle - 90) * Math.PI) / 180)
+                    50 +
+                    50 * Math.sin(((segment.startAngle - 90) * Math.PI) / 180)
                   const x2 =
-                    50 + 50 * Math.cos(((currentAngle - 90) * Math.PI) / 180)
+                    50 +
+                    50 * Math.cos(((segment.endAngle - 90) * Math.PI) / 180)
                   const y2 =
-                    50 + 50 * Math.sin(((currentAngle - 90) * Math.PI) / 180)
-                  const largeArcFlag = angle > 180 ? 1 : 0
+                    50 +
+                    50 * Math.sin(((segment.endAngle - 90) * Math.PI) / 180)
+                  const largeArcFlag = segment.angle > 180 ? 1 : 0
 
                   return (
                     <path
-                      key={item.category}
+                      key={segment.category}
                       d={`M 50 50 L ${x1} ${y1} A 50 50 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
-                      className={getCategoryColor(item.category)}
+                      className={getCategoryColor(segment.category)}
                     />
                   )
                 })}

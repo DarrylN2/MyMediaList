@@ -28,24 +28,21 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 const STORAGE_KEY = 'mymedialist-auth'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<AuthStatus>('logged-out')
-  const [user, setUser] = useState<User | null>(null)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window === 'undefined') return null
     const stored = window.localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as { user: User }
-        if (parsed?.user) {
-          setUser(parsed.user)
-          setStatus('authenticated')
-        }
-      } catch {
-        window.localStorage.removeItem(STORAGE_KEY)
-      }
+    if (!stored) return null
+    try {
+      const parsed = JSON.parse(stored) as { user: User }
+      return parsed?.user ?? null
+    } catch {
+      window.localStorage.removeItem(STORAGE_KEY)
+      return null
     }
-  }, [])
+  })
+  const [status, setStatus] = useState<AuthStatus>(() =>
+    user ? 'authenticated' : 'logged-out',
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') return

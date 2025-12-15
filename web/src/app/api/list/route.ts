@@ -14,7 +14,7 @@ interface PersistMediaPayload {
   }
   entry?: {
     status?: EntryStatus
-    rating?: number
+    rating?: number | null
     note?: string
   }
 }

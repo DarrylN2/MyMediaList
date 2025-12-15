@@ -3,6 +3,7 @@ export type MediaType = 'movie' | 'tv' | 'anime' | 'game' | 'song'
 export type EntryStatus =
   | 'Planning'
   | 'Watching'
+  | 'Listening'
   | 'Playing'
   | 'Completed'
   | 'Dropped'

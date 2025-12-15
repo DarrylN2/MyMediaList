@@ -4,11 +4,21 @@ import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { EmptyState } from '@/components/EmptyState'
+import { RatingStars } from '@/components/RatingStars'
+import { StatusSelect } from '@/components/StatusSelect'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/context/AuthContext'
-import type { MediaProvider, MediaType } from '@/types'
+import type { EntryStatus, MediaProvider, MediaType } from '@/types'
 import type { LucideIcon } from 'lucide-react'
 import {
   Clapperboard,
@@ -142,7 +152,24 @@ export default function SearchPage() {
   const searchParams = useSearchParams()
   const { user } = useAuth()
   const [activeFilter, setActiveFilter] = useState<CategoryFilter>('all')
-  const [pendingId, setPendingId] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addItem, setAddItem] = useState<SearchResultItem | null>(null)
+  const [listsLoading, setListsLoading] = useState(false)
+  const [listsError, setListsError] = useState<string | null>(null)
+  const [lists, setLists] = useState<
+    Array<{ id: string; title: string; description: string | null }>
+  >([])
+  const [newListTitle, setNewListTitle] = useState('')
+  const [newListDescription, setNewListDescription] = useState('')
+  const [createAndAddSaving, setCreateAndAddSaving] = useState(false)
+  const [addSavingListId, setAddSavingListId] = useState<string | null>(null)
+  const [rateOpen, setRateOpen] = useState(false)
+  const [rateItem, setRateItem] = useState<SearchResultItem | null>(null)
+  const [rateStatus, setRateStatus] = useState<EntryStatus>('Planning')
+  const [rateRating, setRateRating] = useState<number>(0)
+  const [rateNotes, setRateNotes] = useState('')
+  const [rateLoading, setRateLoading] = useState(false)
+  const [rateSaving, setRateSaving] = useState(false)
   const [movieCategory, setMovieCategory] =
     useState<SearchCategory>(MOVIE_CATEGORY_BASE)
   const [tvCategory, setTvCategory] = useState<SearchCategory>(TV_CATEGORY_BASE)
@@ -321,45 +348,201 @@ export default function SearchPage() {
       return
     }
 
-    setPendingId(item.id)
-
     try {
-      const response = await fetch('/api/list', {
+      setAddItem(item)
+      setAddOpen(true)
+      setListsLoading(true)
+      setListsError(null)
+
+      const response = await fetch(
+        `/api/lists?userId=${encodeURIComponent(user.email)}`,
+      )
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to load lists.')
+      }
+
+      const payload = (await response.json()) as {
+        lists: Array<{ id: string; title: string; description: string | null }>
+      }
+      setLists(payload.lists ?? [])
+    } catch (error) {
+      console.error(error)
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to save entry.',
+      )
+      setListsError(error instanceof Error ? error.message : 'Unable to load.')
+    } finally {
+      setListsLoading(false)
+    }
+  }
+
+  const addToList = async (listId: string) => {
+    if (!user || !addItem?.provider || !addItem?.providerId) return
+    setAddSavingListId(listId)
+    try {
+      const response = await fetch(`/api/lists/${listId}/items`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.email,
           media: {
-            provider: item.provider,
-            providerId: item.providerId,
-            type: item.type,
-            title: item.title,
-            posterUrl: item.coverUrl,
-            description: item.description,
+            provider: addItem.provider,
+            providerId: addItem.providerId,
+            type: addItem.type,
+            title: addItem.title,
+            posterUrl: addItem.coverUrl,
+            description: addItem.description,
+          },
+        }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to add to list.')
+      }
+
+      toast.success(
+        `Added ${addItem.title} to "${lists.find((l) => l.id === listId)?.title ?? 'list'}".`,
+      )
+      setAddOpen(false)
+    } catch (error) {
+      console.error(error)
+      toast.error(error instanceof Error ? error.message : 'Unable to add.')
+    } finally {
+      setAddSavingListId(null)
+    }
+  }
+
+  const createListAndAdd = async () => {
+    if (!user || !addItem) return
+    const title = newListTitle.trim()
+    if (!title) {
+      toast('List title is required.')
+      return
+    }
+
+    setCreateAndAddSaving(true)
+    try {
+      const createRes = await fetch('/api/lists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.email,
+          title,
+          description: newListDescription.trim(),
+        }),
+      })
+      if (!createRes.ok) {
+        const payload = await createRes.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to create list.')
+      }
+
+      const createPayload = (await createRes.json()) as {
+        list: { id: string; title: string; description: string | null }
+      }
+
+      const listId = createPayload.list.id
+      await addToList(listId)
+      setNewListTitle('')
+      setNewListDescription('')
+    } catch (error) {
+      console.error(error)
+      toast.error(error instanceof Error ? error.message : 'Unable to create.')
+    } finally {
+      setCreateAndAddSaving(false)
+    }
+  }
+
+  const handleSelect = (item: SearchResultItem) => {
+    router.push(`/media/${item.id}`)
+  }
+
+  const handleRate = async (item: SearchResultItem) => {
+    if (!user) {
+      toast('Log in to rate items.')
+      return
+    }
+
+    if (!item.provider || !item.providerId) {
+      toast('Rating is currently available for TMDB results only.')
+      return
+    }
+
+    setRateItem(item)
+    setRateOpen(true)
+    setRateLoading(true)
+
+    try {
+      const response = await fetch(
+        `/api/list?provider=${encodeURIComponent(
+          item.provider,
+        )}&sourceId=${encodeURIComponent(
+          item.providerId,
+        )}&userId=${encodeURIComponent(user.email)}`,
+      )
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to load saved entry.')
+      }
+
+      const payload = (await response.json()) as {
+        entry: { status?: EntryStatus; rating?: number; note?: string } | null
+      }
+
+      setRateStatus(payload.entry?.status ?? 'Planning')
+      setRateRating(payload.entry?.rating ?? 0)
+      setRateNotes(payload.entry?.note ?? '')
+    } catch (error) {
+      console.error(error)
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to load saved entry.',
+      )
+      setRateStatus('Planning')
+      setRateRating(0)
+      setRateNotes('')
+    } finally {
+      setRateLoading(false)
+    }
+  }
+
+  const saveRate = async () => {
+    if (!user || !rateItem?.provider || !rateItem?.providerId) return
+    setRateSaving(true)
+    try {
+      const response = await fetch('/api/list', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.email,
+          media: {
+            provider: rateItem.provider,
+            providerId: rateItem.providerId,
+            type: rateItem.type,
+            title: rateItem.title,
+            posterUrl: rateItem.coverUrl,
+            description: rateItem.description,
+          },
+          entry: {
+            status: rateStatus,
+            rating: rateRating > 0 ? rateRating : null,
+            note: rateNotes,
           },
         }),
       })
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
-        throw new Error(payload?.error ?? 'Unable to save entry.')
+        throw new Error(payload?.error ?? 'Unable to save rating.')
       }
 
-      toast.success(`Added ${item.title} to your list.`)
+      toast.success(`Saved your rating for ${rateItem.title}.`)
+      setRateOpen(false)
     } catch (error) {
       console.error(error)
-      toast.error(
-        error instanceof Error ? error.message : 'Unable to save entry.',
-      )
+      toast.error(error instanceof Error ? error.message : 'Unable to save.')
     } finally {
-      setPendingId((current) => (current === item.id ? null : current))
+      setRateSaving(false)
     }
-  }
-
-  const handleSelect = (item: SearchResultItem) => {
-    router.push(`/media/${item.id}`)
   }
 
   const showEmptyState = !isLoading && visibleCategories.length === 0
@@ -447,27 +630,188 @@ export default function SearchPage() {
               category={category}
               onAdd={handleAdd}
               onSelect={handleSelect}
-              pendingId={pendingId}
+              onRate={handleRate}
             />
           ))}
         </div>
       )}
+
+      <Dialog
+        open={rateOpen}
+        onOpenChange={(open) => {
+          setRateOpen(open)
+          if (!open) {
+            setRateItem(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {rateItem ? `Rate: ${rateItem.title}` : 'Rate item'}
+            </DialogTitle>
+          </DialogHeader>
+
+          {rateLoading ? (
+            <div className="text-sm text-muted-foreground">Loading…</div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium">Status</label>
+                <StatusSelect
+                  value={rateStatus}
+                  onChange={setRateStatus}
+                  mediaType={rateItem?.type ?? 'movie'}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium">Rating</label>
+                <RatingStars
+                  rating={rateRating}
+                  interactive
+                  onRatingChange={setRateRating}
+                  maxRating={10}
+                  size="lg"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium">Notes</label>
+                <Textarea
+                  value={rateNotes}
+                  onChange={(e) => setRateNotes(e.target.value)}
+                  placeholder="Add your thoughts..."
+                  rows={4}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRateOpen(false)}
+              disabled={rateSaving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={saveRate}
+              disabled={rateSaving || rateLoading || !rateItem}
+            >
+              {rateSaving ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={addOpen}
+        onOpenChange={(open) => {
+          setAddOpen(open)
+          if (!open) {
+            setAddItem(null)
+            setListsError(null)
+            setNewListTitle('')
+            setNewListDescription('')
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {addItem ? `Add to list: ${addItem.title}` : 'Add to list'}
+            </DialogTitle>
+          </DialogHeader>
+
+          {listsLoading ? (
+            <div className="text-sm text-muted-foreground">Loading lists…</div>
+          ) : listsError ? (
+            <div className="text-sm text-rose-700">{listsError}</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {lists.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    You don’t have any lists yet. Create one below.
+                  </div>
+                ) : (
+                  <div className="grid gap-2">
+                    {lists.map((list) => (
+                      <Button
+                        key={list.id}
+                        type="button"
+                        variant="outline"
+                        className="justify-start"
+                        onClick={() => addToList(list.id)}
+                        disabled={
+                          addSavingListId === list.id || createAndAddSaving
+                        }
+                      >
+                        {addSavingListId === list.id ? 'Adding…' : list.title}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border p-3">
+                <div className="space-y-3">
+                  <div className="text-sm font-medium">Create a new list</div>
+                  <Input
+                    value={newListTitle}
+                    onChange={(e) => setNewListTitle(e.target.value)}
+                    placeholder="List title"
+                  />
+                  <Textarea
+                    value={newListDescription}
+                    onChange={(e) => setNewListDescription(e.target.value)}
+                    placeholder="Description (optional)"
+                    rows={3}
+                  />
+                  <Button
+                    type="button"
+                    onClick={createListAndAdd}
+                    disabled={createAndAddSaving || !addItem}
+                    className="w-full"
+                  >
+                    {createAndAddSaving ? 'Creating…' : 'Create list & add'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAddOpen(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
 interface SearchCategorySectionProps {
   category: SearchCategory
-  pendingId: string | null
   onAdd: (item: SearchResultItem) => void
   onSelect: (item: SearchResultItem) => void
+  onRate: (item: SearchResultItem) => void
 }
 
 function SearchCategorySection({
   category,
   onAdd,
   onSelect,
-  pendingId,
+  onRate,
 }: SearchCategorySectionProps) {
   return (
     <section className="space-y-4">
@@ -492,8 +836,8 @@ function SearchCategorySection({
           <SearchResultCard
             key={item.id}
             item={item}
-            isLoading={pendingId === item.id}
             onAdd={() => onAdd(item)}
+            onRate={() => onRate(item)}
             onSelect={() => onSelect(item)}
           />
         ))}
@@ -505,15 +849,15 @@ function SearchCategorySection({
 interface SearchResultCardProps {
   item: SearchResultItem
   onAdd: () => void
+  onRate: () => void
   onSelect: () => void
-  isLoading: boolean
 }
 
 function SearchResultCard({
   item,
   onAdd,
+  onRate,
   onSelect,
-  isLoading,
 }: SearchResultCardProps) {
   const TypeIcon = typeIconMap[item.type]
 
@@ -580,17 +924,29 @@ function SearchResultCard({
         </div>
       </div>
 
-      <Button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation()
-          onAdd()
-        }}
-        disabled={isLoading}
-        className="w-full rounded-full px-6 py-2 text-sm font-semibold md:w-auto"
-      >
-        {isLoading ? 'Saving…' : 'Add to list'}
-      </Button>
+      <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={(event) => {
+            event.stopPropagation()
+            onRate()
+          }}
+          className="w-full rounded-full px-6 py-2 text-sm font-semibold md:w-auto"
+        >
+          Rate
+        </Button>
+        <Button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            onAdd()
+          }}
+          className="w-full rounded-full px-6 py-2 text-sm font-semibold md:w-auto"
+        >
+          Add to list
+        </Button>
+      </div>
     </div>
   )
 }

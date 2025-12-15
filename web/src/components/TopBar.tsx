@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Search, Filter, User, Home } from 'lucide-react'
@@ -21,22 +21,18 @@ export function TopBar() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const queryFromUrl = useMemo(() => {
+    if (pathname !== '/search') return ''
+    return searchParams.get('query') ?? ''
+  }, [pathname, searchParams])
   const [searchTerm, setSearchTerm] = useState(
     () => searchParams.get('query') ?? '',
   )
   const [profileOpen, setProfileOpen] = useState(false)
   const { status, user, switchView } = useAuth()
 
-  useEffect(() => {
-    if (pathname === '/search') {
-      setSearchTerm(searchParams.get('query') ?? '')
-    } else {
-      setSearchTerm('')
-    }
-  }, [pathname, searchParams])
-
   const navigateToSearch = () => {
-    const trimmed = searchTerm.trim()
+    const trimmed = (pathname === '/search' ? queryFromUrl : searchTerm).trim()
     const queryString = trimmed ? `?query=${encodeURIComponent(trimmed)}` : ''
     router.push(`/search${queryString}`)
   }
@@ -93,8 +89,18 @@ export function TopBar() {
               </button>
               <Input
                 type="search"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                value={pathname === '/search' ? queryFromUrl : searchTerm}
+                onChange={(event) => {
+                  if (pathname === '/search') {
+                    const next = event.target.value
+                    const queryString = next.trim()
+                      ? `?query=${encodeURIComponent(next)}`
+                      : '?query='
+                    router.replace(`/search${queryString}`)
+                    return
+                  }
+                  setSearchTerm(event.target.value)
+                }}
                 placeholder="Search movies, anime, songs, games…"
                 className="h-10 w-full rounded-full pl-28 pr-12"
                 aria-label="Search media"

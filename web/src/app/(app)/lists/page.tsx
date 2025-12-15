@@ -2,107 +2,95 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
-import { Filter, Plus, Search } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Filter, MessageSquareText, Plus, Search } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { mockLists, type ListCategory } from '@/data/mockLists'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { useAuth } from '@/context/AuthContext'
+import { mockLists } from '@/data/mockLists'
+import type { EntryStatus, MediaType } from '@/types'
 
 const FILTER_OPTIONS = ['all', 'movies', 'anime', 'games'] as const
 type FilterOption = (typeof FILTER_OPTIONS)[number]
 
 type RatedItem = {
-  id: string
   title: string
-  type: ListCategory
-  status: string
+  type: MediaType
+  status: EntryStatus
   rating: number
-  ratedAt: string
-  note: string
-  coverUrl: string
+  updatedAt: string
+  note: string | null
+  coverUrl: string | null
 }
 
-const mockRatings: RatedItem[] = [
-  {
-    id: 'matrix',
-    title: 'The Matrix',
-    type: 'movies',
-    status: 'Completed',
-    rating: 10,
-    ratedAt: 'Nov 20',
-    note: 'Cyberpunk perfection with endlessly rewatchable action.',
-    coverUrl: 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
-  },
-  {
-    id: 'aot',
-    title: 'Attack on Titan Final Season',
-    type: 'anime',
-    status: 'Watching',
-    rating: 10,
-    ratedAt: 'Nov 18',
-    note: 'Peak storytelling—every episode lands a gut punch.',
-    coverUrl:
-      'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498-C6FPmWm59CyP.jpg',
-  },
-  {
-    id: 'hades',
-    title: 'Hades',
-    type: 'games',
-    status: 'Playing',
-    rating: 9,
-    ratedAt: 'Nov 15',
-    note: 'Combat loop stays fresh even a hundred runs in.',
-    coverUrl:
-      'https://images.igdb.com/igdb/image/upload/t_cover_big/co4jni.jpg',
-  },
-  {
-    id: 'fullmetal',
-    title: 'Fullmetal Alchemist: Brotherhood',
-    type: 'anime',
-    status: 'Completed',
-    rating: 9,
-    ratedAt: 'Nov 12',
-    note: 'Tightly plotted, emotional, and endlessly quotable.',
-    coverUrl:
-      'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx5114-KJT9MGf4r7jz.jpg',
-  },
-  {
-    id: 'dune',
-    title: 'Dune: Part Two',
-    type: 'movies',
-    status: 'Completed',
-    rating: 9,
-    ratedAt: 'Nov 10',
-    note: 'Huge sci-fi spectacle with immaculate sound design.',
-    coverUrl: 'https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg',
-  },
-  {
-    id: 'stardew',
-    title: 'Stardew Valley',
-    type: 'games',
-    status: 'On break',
-    rating: 8,
-    ratedAt: 'Nov 08',
-    note: 'Comfort title—easy to get lost farming for hours.',
-    coverUrl:
-      'https://images.igdb.com/igdb/image/upload/t_cover_big/co2f39.jpg',
-  },
-]
-
-const badgeTone: Record<ListCategory, string> = {
-  movies: 'bg-orange-100 text-orange-800 border-transparent',
+const badgeTone: Record<MediaType, string> = {
+  movie: 'bg-orange-100 text-orange-800 border-transparent',
+  tv: 'bg-sky-100 text-sky-700 border-transparent',
   anime: 'bg-pink-100 text-pink-700 border-transparent',
-  games: 'bg-violet-100 text-violet-700 border-transparent',
+  game: 'bg-violet-100 text-violet-700 border-transparent',
+  song: 'bg-emerald-100 text-emerald-800 border-transparent',
 }
+
+const RATED_SORT_OPTIONS = [
+  { value: 'recent', label: 'Most recent' },
+  { value: 'rating_desc', label: 'Rating (high → low)' },
+  { value: 'rating_asc', label: 'Rating (low → high)' },
+  { value: 'title', label: 'Title (A → Z)' },
+] as const
+type RatedSort = (typeof RATED_SORT_OPTIONS)[number]['value']
 
 export default function ListsPage() {
+  const { user } = useAuth()
   const [query, setQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<FilterOption>('all')
+  const [userLists, setUserLists] = useState<
+    Array<{
+      id: string
+      title: string
+      description: string | null
+      updatedAt: string
+      itemCount: number
+    }>
+  >([])
+  const [userListsLoading, setUserListsLoading] = useState(false)
+  const [userListsError, setUserListsError] = useState<string | null>(null)
+  const [ratedQuery, setRatedQuery] = useState('')
+  const [ratedType, setRatedType] = useState<MediaType | 'all'>('all')
+  const [ratedStatus, setRatedStatus] = useState<EntryStatus | 'all'>('all')
+  const [ratedSort, setRatedSort] = useState<RatedSort>('recent')
+  const [ratedItems, setRatedItems] = useState<RatedItem[]>([])
+  const [ratedLoading, setRatedLoading] = useState(false)
+  const [ratedError, setRatedError] = useState<string | null>(null)
 
-  const filteredLists = useMemo(() => {
+  const formatShortDate = (iso: string) => {
+    const date = new Date(iso)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
+  const filteredUserLists = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    if (!normalizedQuery) return userLists
+    return userLists.filter((list) => {
+      return (
+        list.title.toLowerCase().includes(normalizedQuery) ||
+        (list.description?.toLowerCase().includes(normalizedQuery) ?? false)
+      )
+    })
+  }, [query, userLists])
+
+  const filteredMockLists = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
     return mockLists.filter((list) => {
@@ -121,20 +109,182 @@ export default function ListsPage() {
     })
   }, [activeFilter, query])
 
-  const totalItems = useMemo(
-    () => mockLists.reduce((sum, list) => sum + list.itemCount, 0),
-    [],
-  )
-  const sortedRatings = useMemo(
-    () =>
-      [...mockRatings].sort((first, second) => {
-        if (second.rating === first.rating) {
-          return second.ratedAt.localeCompare(first.ratedAt)
+  const totalItems = useMemo(() => {
+    if (user?.email) {
+      return userLists.reduce((sum, list) => sum + list.itemCount, 0)
+    }
+    return mockLists.reduce((sum, list) => sum + list.itemCount, 0)
+  }, [user?.email, userLists])
+
+  useEffect(() => {
+    if (!user?.email) {
+      setUserLists([])
+      setUserListsError(null)
+      setUserListsLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setUserListsLoading(true)
+    setUserListsError(null)
+
+    const load = async () => {
+      try {
+        const res = await fetch(
+          `/api/lists?userId=${encodeURIComponent(user.email)}`,
+          { signal: controller.signal },
+        )
+        if (!res.ok) {
+          const payload = await res.json().catch(() => null)
+          throw new Error(payload?.error ?? 'Failed to load lists.')
         }
-        return second.rating - first.rating
-      }),
-    [],
-  )
+        const payload = (await res.json()) as {
+          lists: Array<{
+            id: string
+            title: string
+            description: string | null
+            updated_at: string
+          }>
+        }
+
+        const lists = payload.lists ?? []
+        const counts = await Promise.all(
+          lists.map(async (list) => {
+            const countRes = await fetch(
+              `/api/lists/${list.id}?userId=${encodeURIComponent(user.email)}`,
+              { signal: controller.signal },
+            )
+            if (!countRes.ok) return 0
+            const detail = (await countRes.json()) as { items?: unknown[] }
+            return Array.isArray(detail.items) ? detail.items.length : 0
+          }),
+        )
+
+        if (!controller.signal.aborted) {
+          setUserLists(
+            lists.map((list, idx) => ({
+              id: list.id,
+              title: list.title,
+              description: list.description,
+              updatedAt: list.updated_at,
+              itemCount: counts[idx] ?? 0,
+            })),
+          )
+        }
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') return
+        setUserListsError(
+          error instanceof Error ? error.message : 'Failed to load lists.',
+        )
+      } finally {
+        if (!controller.signal.aborted) setUserListsLoading(false)
+      }
+    }
+
+    load()
+    return () => controller.abort()
+  }, [user?.email])
+
+  useEffect(() => {
+    if (!user?.email) {
+      setRatedItems([])
+      setRatedError(null)
+      setRatedLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setRatedLoading(true)
+    setRatedError(null)
+
+    const load = async () => {
+      try {
+        const response = await fetch(
+          `/api/ratings?userId=${encodeURIComponent(user.email)}`,
+          { signal: controller.signal },
+        )
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.error ?? 'Failed to load rated items.')
+        }
+
+        const payload = (await response.json()) as {
+          items: Array<{
+            status: EntryStatus
+            rating: number
+            note: string | null
+            updatedAt: string
+            media: {
+              title: string
+              posterUrl: string | null
+              type: MediaType
+            }
+          }>
+        }
+
+        if (!controller.signal.aborted) {
+          setRatedItems(
+            payload.items.map((item) => ({
+              title: item.media.title,
+              type: item.media.type,
+              status: item.status,
+              rating: item.rating,
+              updatedAt: item.updatedAt,
+              note: item.note,
+              coverUrl: item.media.posterUrl,
+            })),
+          )
+        }
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') return
+        setRatedError(
+          error instanceof Error ? error.message : 'Failed to load.',
+        )
+      } finally {
+        if (!controller.signal.aborted) {
+          setRatedLoading(false)
+        }
+      }
+    }
+
+    load()
+    return () => controller.abort()
+  }, [user?.email])
+
+  const visibleRatedItems = useMemo(() => {
+    const q = ratedQuery.trim().toLowerCase()
+
+    const filtered = ratedItems.filter((item) => {
+      if (ratedType !== 'all' && item.type !== ratedType) return false
+      if (ratedStatus !== 'all' && item.status !== ratedStatus) return false
+      if (!q) return true
+      return (
+        item.title.toLowerCase().includes(q) ||
+        (item.note?.toLowerCase().includes(q) ?? false)
+      )
+    })
+
+    const sorted = [...filtered].sort((a, b) => {
+      switch (ratedSort) {
+        case 'recent':
+          return b.updatedAt.localeCompare(a.updatedAt)
+        case 'rating_desc':
+          return b.rating - a.rating
+        case 'rating_asc':
+          return a.rating - b.rating
+        case 'title':
+          return a.title.localeCompare(b.title, undefined, {
+            sensitivity: 'base',
+          })
+        default:
+          return 0
+      }
+    })
+
+    return sorted
+  }, [ratedItems, ratedQuery, ratedSort, ratedStatus, ratedType])
+
+  const formatRatedDate = formatShortDate
 
   return (
     <div className="space-y-8">
@@ -165,26 +315,29 @@ export default function ListsPage() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {FILTER_OPTIONS.map((option) => (
-            <Button
-              key={option}
-              type="button"
-              variant={option === activeFilter ? 'default' : 'secondary'}
-              className={`rounded-full px-4 text-sm capitalize ${
-                option === activeFilter
-                  ? 'shadow-md'
-                  : 'bg-white/70 text-slate-600 hover:bg-white'
-              }`}
-              onClick={() => setActiveFilter(option)}
-            >
-              {option === 'all' ? 'All lists' : option}
-            </Button>
-          ))}
-        </div>
+        {!user?.email ? (
+          <div className="flex flex-wrap gap-2">
+            {FILTER_OPTIONS.map((option) => (
+              <Button
+                key={option}
+                type="button"
+                variant={option === activeFilter ? 'default' : 'secondary'}
+                className={`rounded-full px-4 text-sm capitalize ${
+                  option === activeFilter
+                    ? 'shadow-md'
+                    : 'bg-white/70 text-slate-600 hover:bg-white'
+                }`}
+                onClick={() => setActiveFilter(option)}
+              >
+                {option === 'all' ? 'All lists' : option}
+              </Button>
+            ))}
+          </div>
+        ) : null}
 
         <p className="text-sm text-muted-foreground">
-          Tracking {totalItems} items across {mockLists.length} curated lists.
+          Tracking {totalItems} items across{' '}
+          {user?.email ? userLists.length : mockLists.length} lists.
         </p>
       </header>
 
@@ -196,13 +349,88 @@ export default function ListsPage() {
           </p>
         </div>
 
-        {filteredLists.length === 0 ? (
+        {user?.email ? (
+          userListsLoading ? (
+            <div className="rounded-3xl border border-dashed border-muted-foreground/30 bg-white/80 p-10 text-center text-muted-foreground">
+              Loading your lists…
+            </div>
+          ) : userListsError ? (
+            <div className="rounded-3xl border border-rose-100 bg-rose-50/80 p-10 text-center text-rose-700">
+              {userListsError}
+            </div>
+          ) : filteredUserLists.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-muted-foreground/30 bg-white/80 p-10 text-center text-muted-foreground">
+              No lists match your filters. Try a different search.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredUserLists.map((list) => (
+                <Link
+                  key={list.id}
+                  href={`/lists/${list.id}`}
+                  className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                >
+                  <article className="flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/95 p-4 shadow-md transition group-hover:-translate-y-0.5 group-hover:shadow-lg sm:flex-row sm:items-center sm:gap-6">
+                    <div className="flex flex-1 items-center gap-4">
+                      <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 text-xl font-semibold text-indigo-700">
+                        {list.title.slice(0, 1).toUpperCase()}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <Badge variant="secondary" className="capitalize">
+                            Custom
+                          </Badge>
+                          <span>{list.itemCount} items</span>
+                        </div>
+
+                        <div>
+                          <h3 className="text-lg font-semibold text-foreground">
+                            {list.title}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            {list.description ?? '—'}
+                          </p>
+                        </div>
+
+                        <p className="text-xs text-muted-foreground">
+                          Updated {formatShortDate(list.updatedAt)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Separator
+                      orientation="vertical"
+                      className="hidden h-20 self-stretch sm:block"
+                    />
+
+                    <div className="flex w-full items-center justify-between gap-6 sm:w-auto sm:flex-col sm:items-end sm:text-right">
+                      <div className="flex flex-col text-left sm:items-end sm:text-right">
+                        <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Items
+                        </span>
+                        <span className="text-3xl font-semibold leading-tight text-foreground">
+                          {list.itemCount}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {list.itemCount === 1
+                            ? 'Item in this list'
+                            : 'Items in this list'}
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                </Link>
+              ))}
+            </div>
+          )
+        ) : filteredMockLists.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-muted-foreground/30 bg-white/80 p-10 text-center text-muted-foreground">
             No lists match your filters. Try a different search or category.
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredLists.map((list) => (
+            {filteredMockLists.map((list) => (
               <Link
                 key={list.id}
                 href={`/lists/${list.id}`}
@@ -223,10 +451,7 @@ export default function ListsPage() {
 
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <Badge
-                          variant="secondary"
-                          className={`capitalize ${badgeTone[list.type]}`}
-                        >
+                        <Badge variant="secondary" className="capitalize">
                           {list.type}
                         </Badge>
                         <span>{list.itemCount} items</span>
@@ -294,14 +519,65 @@ export default function ListsPage() {
       <section className="rounded-3xl border border-white/70 bg-white/95 p-6 shadow-md">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold">Top rated items</h2>
+            <h2 className="text-xl font-semibold">Rated items</h2>
             <p className="text-sm text-muted-foreground">
-              Ordered list of everything you have scored so far.
+              Everything you have rated so far, with quick filtering and
+              sorting.
             </p>
           </div>
-          <Button variant="ghost" className="text-sm text-muted-foreground">
-            View history
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              value={ratedQuery}
+              onChange={(event) => setRatedQuery(event.target.value)}
+              placeholder="Search ratings"
+              className="h-9 w-[220px]"
+            />
+            <select
+              value={ratedSort}
+              onChange={(event) =>
+                setRatedSort(event.target.value as RatedSort)
+              }
+              className="h-9 rounded-md border bg-white px-3 text-sm"
+              aria-label="Sort rated items"
+            >
+              {RATED_SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={ratedType}
+              onChange={(event) =>
+                setRatedType(event.target.value as MediaType | 'all')
+              }
+              className="h-9 rounded-md border bg-white px-3 text-sm capitalize"
+              aria-label="Filter rated items by type"
+            >
+              <option value="all">All types</option>
+              <option value="movie">Movies</option>
+              <option value="tv">TV</option>
+              <option value="anime">Anime</option>
+              <option value="game">Games</option>
+              <option value="song">Songs</option>
+            </select>
+            <select
+              value={ratedStatus}
+              onChange={(event) =>
+                setRatedStatus(event.target.value as EntryStatus | 'all')
+              }
+              className="h-9 rounded-md border bg-white px-3 text-sm"
+              aria-label="Filter rated items by status"
+            >
+              <option value="all">Any status</option>
+              <option value="Planning">Planning</option>
+              <option value="Watching">Watching</option>
+              <option value="Listening">Listening</option>
+              <option value="Playing">Playing</option>
+              <option value="Completed">Completed</option>
+              <option value="Dropped">Dropped</option>
+            </select>
+          </div>
         </div>
 
         <div className="mt-6 divide-y divide-slate-200">
@@ -311,47 +587,88 @@ export default function ListsPage() {
             <span>Status</span>
             <span className="text-right">Rating</span>
           </div>
-          {sortedRatings.map((item) => (
-            <div
-              key={item.id}
-              className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-[auto,1fr,120px,90px]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="relative h-12 w-12 overflow-hidden rounded-xl bg-muted">
-                  <Image
-                    src={item.coverUrl}
-                    alt={`${item.title} cover`}
-                    fill
-                    sizes="48px"
-                    className="object-cover"
-                  />
+          {!user ? (
+            <div className="py-6 text-sm text-muted-foreground">
+              Log in to see your rated items.
+            </div>
+          ) : ratedLoading ? (
+            <div className="py-6 text-sm text-muted-foreground">
+              Loading rated items…
+            </div>
+          ) : ratedError ? (
+            <div className="py-6 text-sm text-rose-700">{ratedError}</div>
+          ) : visibleRatedItems.length === 0 ? (
+            <div className="py-6 text-sm text-muted-foreground">
+              No rated items yet.
+            </div>
+          ) : (
+            visibleRatedItems.map((item) => (
+              <div
+                key={`${item.type}-${item.title}-${item.updatedAt}`}
+                className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-[auto,1fr,120px,90px]"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="relative h-12 w-12 overflow-hidden rounded-xl bg-muted">
+                    {item.coverUrl ? (
+                      <Image
+                        src={item.coverUrl}
+                        alt={`${item.title} cover`}
+                        fill
+                        sizes="48px"
+                        className="object-cover"
+                      />
+                    ) : null}
+                  </div>
+                  <div>
+                    <p className="font-medium leading-tight">{item.title}</p>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant="secondary"
+                        className={`capitalize ${badgeTone[item.type]}`}
+                      >
+                        {item.type}
+                      </Badge>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium leading-tight">{item.title}</p>
-                  <span className="text-xs capitalize text-muted-foreground">
-                    {item.type}
+
+                <div className="flex items-center gap-2">
+                  <p className="line-clamp-2 text-sm text-muted-foreground">
+                    {item.note ? item.note : '—'}
+                  </p>
+                  {item.note ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label="View note"
+                        >
+                          <MessageSquareText className="h-4 w-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent sideOffset={8}>
+                        {item.note}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center text-sm text-muted-foreground">
+                  {item.status}
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end sm:text-right">
+                  <span className="text-lg font-semibold text-foreground">
+                    {item.rating}/10
+                  </span>
+                  <span className="text-xs text-muted-foreground sm:ml-2">
+                    Rated {formatRatedDate(item.updatedAt)}
                   </span>
                 </div>
               </div>
-
-              <div>
-                <p className="text-sm text-muted-foreground">{item.note}</p>
-              </div>
-
-              <div className="flex items-center text-sm text-muted-foreground">
-                {item.status}
-              </div>
-
-              <div className="flex items-center justify-between sm:justify-end sm:text-right">
-                <span className="text-lg font-semibold text-foreground">
-                  {item.rating}/10
-                </span>
-                <span className="text-xs text-muted-foreground sm:ml-2">
-                  Rated {item.ratedAt}
-                </span>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </section>
     </div>

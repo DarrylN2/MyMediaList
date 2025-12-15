@@ -247,7 +247,10 @@ export default function MediaDetailPage({
   }
 
   const statusMediaType =
-    media.type === 'tv' || media.type === 'anime' || media.type === 'game'
+    media.type === 'tv' ||
+    media.type === 'anime' ||
+    media.type === 'game' ||
+    media.type === 'song'
       ? media.type
       : 'movie'
 

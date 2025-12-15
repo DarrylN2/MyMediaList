@@ -10,7 +10,7 @@ export function SummaryStrip() {
       <div className="px-6 py-4">
         <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
           <span>
-            You've tracked{' '}
+            You&apos;ve tracked{' '}
             <strong className="text-foreground">
               {mockStats.totalItems} items
             </strong>

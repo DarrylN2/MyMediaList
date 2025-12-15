@@ -48,5 +48,61 @@ for all
 using (auth.uid()::text = user_identifier)
 with check (auth.uid()::text = user_identifier);
 
+-- User-created lists (multi-list support)
+create table if not exists lists (
+  id uuid primary key default gen_random_uuid(),
+  user_identifier text not null,
+  title text not null,
+  description text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_identifier, title)
+);
+
+drop trigger if exists lists_updated_at on lists;
+create trigger lists_updated_at
+before update on lists
+for each row
+execute procedure public.set_updated_at();
+
+alter table lists enable row level security;
+
+create policy "Users can manage their lists"
+on lists
+for all
+using (auth.uid()::text = user_identifier)
+with check (auth.uid()::text = user_identifier);
+
+-- Join table: items can belong to many lists
+create table if not exists list_items (
+  id uuid primary key default gen_random_uuid(),
+  list_id uuid not null references lists(id) on delete cascade,
+  media_id uuid not null references media_items(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (list_id, media_id)
+);
+
+alter table list_items enable row level security;
+
+create policy "Users can manage list items"
+on list_items
+for all
+using (
+  exists (
+    select 1
+    from lists
+    where lists.id = list_items.list_id
+      and lists.user_identifier = auth.uid()::text
+  )
+)
+with check (
+  exists (
+    select 1
+    from lists
+    where lists.id = list_items.list_id
+      and lists.user_identifier = auth.uid()::text
+  )
+);
+
 
 
