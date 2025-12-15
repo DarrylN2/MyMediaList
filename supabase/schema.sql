@@ -48,3 +48,5 @@ for all
 using (auth.uid()::text = user_identifier)
 with check (auth.uid()::text = user_identifier);
 
+
+
