@@ -25,7 +25,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { MediaListItem } from '@/components/MediaListItem'
+import {
+  MediaListItem,
+  type MediaListItemViewMode,
+} from '@/components/MediaListItem'
 import { useAuth } from '@/context/AuthContext'
 import { mockLists } from '@/data/mockLists'
 import type { EntryStatus, MediaType } from '@/types'
@@ -103,6 +106,8 @@ export default function ListsPage() {
   const [ratedType, setRatedType] = useState<MediaType | 'all'>('all')
   const [ratedStatus, setRatedStatus] = useState<EntryStatus | 'all'>('all')
   const [ratedSort, setRatedSort] = useState<RatedSort>('recent')
+  const [ratedViewMode, setRatedViewMode] =
+    useState<MediaListItemViewMode>('detailed')
   const [ratedItems, setRatedItems] = useState<RatedItem[]>([])
   const [ratedLoading, setRatedLoading] = useState(false)
   const [ratedError, setRatedError] = useState<string | null>(null)
@@ -340,6 +345,25 @@ export default function ListsPage() {
     load()
     return () => controller.abort()
   }, [user?.email])
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem('mml:ratedViewMode')
+      if (stored === 'detailed' || stored === 'grid' || stored === 'compact') {
+        setRatedViewMode(stored)
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('mml:ratedViewMode', ratedViewMode)
+    } catch {
+      // ignore
+    }
+  }, [ratedViewMode])
 
   const visibleRatedItems = useMemo(() => {
     const q = ratedQuery.trim().toLowerCase()
@@ -840,20 +864,27 @@ export default function ListsPage() {
               <option value="Completed">Completed</option>
               <option value="Dropped">Dropped</option>
             </select>
+            <div className="flex items-center gap-2">
+              {(['detailed', 'grid', 'compact'] as const).map((mode) => (
+                <Button
+                  key={mode}
+                  type="button"
+                  size="sm"
+                  variant={ratedViewMode === mode ? 'default' : 'outline'}
+                  onClick={() => setRatedViewMode(mode)}
+                >
+                  {mode === 'detailed'
+                    ? 'List'
+                    : mode === 'grid'
+                      ? 'Grid'
+                      : 'Table'}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="mt-6 divide-y divide-slate-200">
-          <div className="hidden grid-cols-[48px_1fr_90px_80px_120px_130px_120px_44px] items-center gap-3 pb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground lg:grid">
-            <span />
-            <span>Title</span>
-            <span>Type</span>
-            <span>Year</span>
-            <span>Status</span>
-            <span>Rating</span>
-            <span>Date</span>
-            <span className="text-right">Notes</span>
-          </div>
+        <div className="mt-6">
           {!user ? (
             <div className="py-6 text-sm text-muted-foreground">
               Log in to see your rated items.
@@ -868,86 +899,108 @@ export default function ListsPage() {
             <div className="py-6 text-sm text-muted-foreground">
               No rated items yet.
             </div>
-          ) : (
-            visibleRatedItems.map((item) => (
-              <div key={`${item.type}-${item.providerId}-${item.updatedAt}`}>
-                <div className="hidden lg:block">
-                  <MediaListItem
-                    viewMode="compact"
-                    href={`/media/${buildMediaRouteId({
-                      provider: item.provider,
-                      providerId: item.providerId,
-                      type: item.type,
-                    })}`}
-                    title={item.title}
-                    type={item.type}
-                    posterUrl={item.coverUrl}
-                    synopsis={null}
-                    year={undefined}
-                    status={item.status}
-                    rating={item.rating}
-                    note={item.note}
-                    entryDateLabel="Rated"
-                    entryDateIso={item.updatedAt}
-                    onChangeStatus={async (next) => {
-                      const prev = ratedItems
-                      setRatedItems((items) =>
-                        items.map((x) =>
-                          x.providerId === item.providerId &&
-                          x.type === item.type
-                            ? { ...x, status: next }
-                            : x,
-                        ),
-                      )
-                      try {
-                        await persistRatedPatch(item, { status: next })
-                      } catch {
-                        setRatedItems(prev)
-                      }
-                    }}
-                    onChangeRating={async (next) => {
-                      const prev = ratedItems
-                      setRatedItems((items) =>
-                        items.map((x) =>
-                          x.providerId === item.providerId &&
-                          x.type === item.type
-                            ? { ...x, rating: next }
-                            : x,
-                        ),
-                      )
-                      try {
-                        await persistRatedPatch(item, { rating: next })
-                      } catch {
-                        setRatedItems(prev)
-                      }
-                    }}
-                    onSaveNote={async (next) => {
-                      const prev = ratedItems
-                      setRatedItems((items) =>
-                        items.map((x) =>
-                          x.providerId === item.providerId &&
-                          x.type === item.type
-                            ? { ...x, note: next }
-                            : x,
-                        ),
-                      )
-                      try {
-                        await persistRatedPatch(item, { note: next })
-                      } catch {
-                        setRatedItems(prev)
-                      }
-                    }}
-                  />
+          ) : ratedViewMode === 'compact' ? (
+            <div className="overflow-x-auto rounded-2xl border bg-white/95 shadow-sm">
+              <div className="min-w-[920px] divide-y divide-slate-200 p-2">
+                <div className="grid grid-cols-[48px_1fr_90px_80px_120px_130px_120px_44px] items-center gap-3 px-2 pb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <span />
+                  <span>Title</span>
+                  <span>Type</span>
+                  <span>Year</span>
+                  <span>Status</span>
+                  <span>Rating</span>
+                  <span>Date</span>
+                  <span className="text-right">Notes</span>
                 </div>
+                {visibleRatedItems.map((item) => {
+                  const href = `/media/${buildMediaRouteId({
+                    provider: item.provider,
+                    providerId: item.providerId,
+                    type: item.type,
+                  })}`
 
-                <div className="lg:hidden">
+                  return (
+                    <MediaListItem
+                      key={`${item.type}-${item.providerId}-${item.updatedAt}`}
+                      viewMode="compact"
+                      href={href}
+                      title={item.title}
+                      type={item.type}
+                      posterUrl={item.coverUrl}
+                      synopsis={null}
+                      year={undefined}
+                      status={item.status}
+                      rating={item.rating}
+                      note={item.note}
+                      entryDateLabel="Rated"
+                      entryDateIso={item.updatedAt}
+                      onChangeStatus={async (next) => {
+                        const prev = ratedItems
+                        setRatedItems((items) =>
+                          items.map((x) =>
+                            x.providerId === item.providerId &&
+                            x.type === item.type
+                              ? { ...x, status: next }
+                              : x,
+                          ),
+                        )
+                        try {
+                          await persistRatedPatch(item, { status: next })
+                        } catch {
+                          setRatedItems(prev)
+                        }
+                      }}
+                      onChangeRating={async (next) => {
+                        const prev = ratedItems
+                        setRatedItems((items) =>
+                          items.map((x) =>
+                            x.providerId === item.providerId &&
+                            x.type === item.type
+                              ? { ...x, rating: next }
+                              : x,
+                          ),
+                        )
+                        try {
+                          await persistRatedPatch(item, { rating: next })
+                        } catch {
+                          setRatedItems(prev)
+                        }
+                      }}
+                      onSaveNote={async (next) => {
+                        const prev = ratedItems
+                        setRatedItems((items) =>
+                          items.map((x) =>
+                            x.providerId === item.providerId &&
+                            x.type === item.type
+                              ? { ...x, note: next }
+                              : x,
+                          ),
+                        )
+                        try {
+                          await persistRatedPatch(item, { note: next })
+                        } catch {
+                          setRatedItems(prev)
+                        }
+                      }}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          ) : ratedViewMode === 'grid' ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {visibleRatedItems.map((item) => {
+                const href = `/media/${buildMediaRouteId({
+                  provider: item.provider,
+                  providerId: item.providerId,
+                  type: item.type,
+                })}`
+
+                return (
                   <MediaListItem
-                    viewMode="detailed"
-                    href={`/media/${buildMediaRouteId({
-                      provider: item.provider,
-                      providerId: item.providerId,
-                      type: item.type,
-                    })}`}
+                    key={`${item.type}-${item.providerId}-${item.updatedAt}`}
+                    viewMode="grid"
+                    href={href}
                     title={item.title}
                     type={item.type}
                     posterUrl={item.coverUrl}
@@ -1007,9 +1060,85 @@ export default function ListsPage() {
                       }
                     }}
                   />
-                </div>
-              </div>
-            ))
+                )
+              })}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {visibleRatedItems.map((item) => {
+                const href = `/media/${buildMediaRouteId({
+                  provider: item.provider,
+                  providerId: item.providerId,
+                  type: item.type,
+                })}`
+
+                return (
+                  <MediaListItem
+                    key={`${item.type}-${item.providerId}-${item.updatedAt}`}
+                    viewMode="detailed"
+                    href={href}
+                    title={item.title}
+                    type={item.type}
+                    posterUrl={item.coverUrl}
+                    synopsis={null}
+                    year={undefined}
+                    status={item.status}
+                    rating={item.rating}
+                    note={item.note}
+                    entryDateLabel="Rated"
+                    entryDateIso={item.updatedAt}
+                    onChangeStatus={async (next) => {
+                      const prev = ratedItems
+                      setRatedItems((items) =>
+                        items.map((x) =>
+                          x.providerId === item.providerId &&
+                          x.type === item.type
+                            ? { ...x, status: next }
+                            : x,
+                        ),
+                      )
+                      try {
+                        await persistRatedPatch(item, { status: next })
+                      } catch {
+                        setRatedItems(prev)
+                      }
+                    }}
+                    onChangeRating={async (next) => {
+                      const prev = ratedItems
+                      setRatedItems((items) =>
+                        items.map((x) =>
+                          x.providerId === item.providerId &&
+                          x.type === item.type
+                            ? { ...x, rating: next }
+                            : x,
+                        ),
+                      )
+                      try {
+                        await persistRatedPatch(item, { rating: next })
+                      } catch {
+                        setRatedItems(prev)
+                      }
+                    }}
+                    onSaveNote={async (next) => {
+                      const prev = ratedItems
+                      setRatedItems((items) =>
+                        items.map((x) =>
+                          x.providerId === item.providerId &&
+                          x.type === item.type
+                            ? { ...x, note: next }
+                            : x,
+                        ),
+                      )
+                      try {
+                        await persistRatedPatch(item, { note: next })
+                      } catch {
+                        setRatedItems(prev)
+                      }
+                    }}
+                  />
+                )
+              })}
+            </div>
           )}
         </div>
       </section>

@@ -223,7 +223,7 @@ export function MediaListItem({
 
   if (viewMode === 'compact') {
     return (
-      <div className="grid grid-cols-[48px,1fr,90px,80px,120px,130px,120px,44px] items-center gap-3 py-3">
+      <div className="grid grid-cols-[48px_1fr_90px_80px_120px_130px_120px_44px] items-center gap-3 py-3">
         <Link
           href={href}
           className="relative h-12 w-12 overflow-hidden rounded-xl bg-muted"
