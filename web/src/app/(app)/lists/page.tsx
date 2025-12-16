@@ -2,13 +2,24 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowUpDown, MessageSquareText, Plus, Search } from 'lucide-react'
+import { ArrowUpDown, Plus, Search } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Tooltip,
   TooltipContent,
@@ -42,14 +53,6 @@ type RatedItem = {
   providerId: string
 }
 
-const badgeTone: Record<MediaType, string> = {
-  movie: 'bg-orange-100 text-orange-800 border-transparent',
-  tv: 'bg-sky-100 text-sky-700 border-transparent',
-  anime: 'bg-pink-100 text-pink-700 border-transparent',
-  game: 'bg-violet-100 text-violet-700 border-transparent',
-  song: 'bg-emerald-100 text-emerald-800 border-transparent',
-}
-
 const RATED_SORT_OPTIONS = [
   { value: 'recent', label: 'Most recent' },
   { value: 'rating_desc', label: 'Rating (high → low)' },
@@ -80,6 +83,7 @@ function buildMediaRouteId(media: {
 }
 
 export default function ListsPage() {
+  const router = useRouter()
   const { user } = useAuth()
   const [query, setQuery] = useState('')
   const [listSort, setListSort] = useState<ListSort>('recent')
@@ -102,6 +106,12 @@ export default function ListsPage() {
   const [ratedItems, setRatedItems] = useState<RatedItem[]>([])
   const [ratedLoading, setRatedLoading] = useState(false)
   const [ratedError, setRatedError] = useState<string | null>(null)
+
+  const [newListOpen, setNewListOpen] = useState(false)
+  const [newListTitle, setNewListTitle] = useState('')
+  const [newListDescription, setNewListDescription] = useState('')
+  const [newListSaving, setNewListSaving] = useState(false)
+  const [newListError, setNewListError] = useState<string | null>(null)
 
   const formatShortDate = (iso: string) => {
     const date = new Date(iso)
@@ -364,8 +374,6 @@ export default function ListsPage() {
     return sorted
   }, [ratedItems, ratedQuery, ratedSort, ratedStatus, ratedType])
 
-  const formatRatedDate = formatShortDate
-
   const persistRatedPatch = async (
     item: RatedItem,
     entry: Partial<{
@@ -395,6 +403,73 @@ export default function ListsPage() {
     if (!res.ok) {
       const payload = await res.json().catch(() => null)
       throw new Error(payload?.error ?? 'Unable to save changes.')
+    }
+  }
+
+  const createList = async () => {
+    if (!user?.email || newListSaving) return
+
+    const title = newListTitle.trim()
+    const description = newListDescription.trim()
+    if (!title) {
+      setNewListError('Title is required.')
+      return
+    }
+
+    setNewListSaving(true)
+    setNewListError(null)
+
+    try {
+      const res = await fetch('/api/lists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.email,
+          title,
+          description: description || undefined,
+        }),
+      })
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to create list.')
+      }
+
+      const payload = (await res.json()) as {
+        list: {
+          id: string
+          title: string
+          description: string | null
+          updated_at: string
+        }
+      }
+
+      const created = payload.list
+      setUserLists((prev) => {
+        const exists = prev.some((list) => list.id === created.id)
+        if (exists) return prev
+        return [
+          {
+            id: created.id,
+            title: created.title,
+            description: created.description,
+            updatedAt: created.updated_at,
+            itemCount: 0,
+          },
+          ...prev,
+        ]
+      })
+
+      setNewListOpen(false)
+      setNewListTitle('')
+      setNewListDescription('')
+      router.push(`/lists/${created.id}`)
+    } catch (error) {
+      setNewListError(
+        error instanceof Error ? error.message : 'Unable to create list.',
+      )
+    } finally {
+      setNewListSaving(false)
     }
   }
 
@@ -429,10 +504,78 @@ export default function ListsPage() {
             </div>
           </div>
 
-          <Button className="h-12 rounded-3xl px-5 text-base shadow-lg">
-            <Plus className="h-4 w-4" />
-            New List
-          </Button>
+          <Dialog open={newListOpen} onOpenChange={setNewListOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DialogTrigger asChild>
+                  <Button
+                    className="h-12 rounded-3xl px-5 text-base shadow-lg"
+                    disabled={!user?.email}
+                  >
+                    <Plus className="h-4 w-4" />
+                    New List
+                  </Button>
+                </DialogTrigger>
+              </TooltipTrigger>
+              {!user?.email ? (
+                <TooltipContent>Log in to create lists.</TooltipContent>
+              ) : null}
+            </Tooltip>
+
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create a new list</DialogTitle>
+                <DialogDescription>
+                  Give it a name and (optionally) a description.
+                </DialogDescription>
+              </DialogHeader>
+
+              <form
+                className="space-y-3"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void createList()
+                }}
+              >
+                <div className="space-y-2">
+                  <Input
+                    value={newListTitle}
+                    onChange={(event) => setNewListTitle(event.target.value)}
+                    placeholder="List title"
+                    aria-label="List title"
+                    autoFocus
+                    required
+                  />
+                  <Textarea
+                    value={newListDescription}
+                    onChange={(event) =>
+                      setNewListDescription(event.target.value)
+                    }
+                    placeholder="Description (optional)"
+                    aria-label="List description"
+                    rows={3}
+                  />
+                  {newListError ? (
+                    <p className="text-sm text-rose-700">{newListError}</p>
+                  ) : null}
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setNewListOpen(false)}
+                    disabled={newListSaving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={newListSaving}>
+                    {newListSaving ? 'Creating…' : 'Create list'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {!user?.email ? (
