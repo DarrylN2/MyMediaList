@@ -40,7 +40,11 @@ export async function GET(
             description,
             type,
             source,
-            source_id
+            source_id,
+            year,
+            duration_minutes,
+            genres,
+            metadata
           )
         `,
       )
@@ -61,7 +65,7 @@ export async function GET(
     const { data: entries, error: entryError } = mediaIds.length
       ? await supabase
           .from('user_media')
-          .select('media_id,status,user_rating,note,updated_at')
+          .select('media_id,status,user_rating,note,updated_at,first_rated_at')
           .eq('user_identifier', userId)
           .in('media_id', mediaIds)
       : { data: [], error: null }
@@ -76,6 +80,7 @@ export async function GET(
           rating: (entry.user_rating as number | null) ?? null,
           note: (entry.note as string | null) ?? null,
           updatedAt: entry.updated_at as string,
+          firstRatedAt: (entry.first_rated_at as string | null) ?? null,
         },
       ]),
     )

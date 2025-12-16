@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
@@ -14,14 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { MediaListItem } from '@/components/MediaListItem'
 import type { MediaType } from '@/types'
 
@@ -43,6 +34,10 @@ type ListItem = {
         type: MediaType
         source: string
         source_id: string
+        year: number | null
+        duration_minutes: number | null
+        genres: string[] | null
+        metadata: unknown | null
       }
     | Array<{
         id: string
@@ -52,12 +47,17 @@ type ListItem = {
         type: MediaType
         source: string
         source_id: string
+        year: number | null
+        duration_minutes: number | null
+        genres: string[] | null
+        metadata: unknown | null
       }>
   entry?: {
     status: import('@/types').EntryStatus
     rating: number | null
     note: string | null
     updatedAt: string
+    firstRatedAt?: string | null
   } | null
 }
 
@@ -186,16 +186,6 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
     return sorted
   }, [items, query, sortBy, sortDirection, typeFilter])
 
-  const formatAddedAt = (iso: string) => {
-    const date = new Date(iso)
-    if (Number.isNaN(date.getTime())) return '—'
-    return date.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
-  }
-
   const renderView = () => {
     if (processedItems.length === 0) {
       return (
@@ -228,15 +218,17 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                 type={entry.media.type}
                 posterUrl={entry.media.poster_url}
                 synopsis={entry.media.description}
-                year={undefined}
+                year={entry.media.year ?? undefined}
+                runtimeMinutes={entry.media.duration_minutes ?? undefined}
+                genres={entry.media.genres ?? undefined}
                 status={
                   (entry.entry?.status as import('@/types').EntryStatus) ??
                   'Planning'
                 }
                 rating={entry.entry?.rating ?? null}
                 note={entry.entry?.note ?? null}
-                entryDateLabel="Added"
-                entryDateIso={entry.createdAt}
+                entryDateLabel={entry.entry?.firstRatedAt ? 'Rated' : 'Added'}
+                entryDateIso={entry.entry?.firstRatedAt ?? entry.createdAt}
                 onChangeStatus={async (next) => {
                   if (!user?.email) return
                   setItems((prev) =>
@@ -254,6 +246,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                           note: row.entry?.note ?? null,
                           updatedAt:
                             row.entry?.updatedAt ?? new Date().toISOString(),
+                          firstRatedAt: row.entry?.firstRatedAt ?? null,
                         },
                       }
                     }),
@@ -284,6 +277,9 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                         : row.media_items
                       if (!media) return row
                       if (media.id !== entry.media.id) return row
+                      const nextFirstRatedAt =
+                        row.entry?.firstRatedAt ??
+                        (next ? new Date().toISOString() : null)
                       return {
                         ...row,
                         entry: {
@@ -292,6 +288,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                           note: row.entry?.note ?? null,
                           updatedAt:
                             row.entry?.updatedAt ?? new Date().toISOString(),
+                          firstRatedAt: nextFirstRatedAt,
                         },
                       }
                     }),
@@ -330,6 +327,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                           note: next,
                           updatedAt:
                             row.entry?.updatedAt ?? new Date().toISOString(),
+                          firstRatedAt: row.entry?.firstRatedAt ?? null,
                         },
                       }
                     }),
@@ -370,15 +368,17 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
               type={entry.media.type}
               posterUrl={entry.media.poster_url}
               synopsis={entry.media.description}
-              year={undefined}
+              year={entry.media.year ?? undefined}
+              runtimeMinutes={entry.media.duration_minutes ?? undefined}
+              genres={entry.media.genres ?? undefined}
               status={
                 (entry.entry?.status as import('@/types').EntryStatus) ??
                 'Planning'
               }
               rating={entry.entry?.rating ?? null}
               note={entry.entry?.note ?? null}
-              entryDateLabel="Added"
-              entryDateIso={entry.createdAt}
+              entryDateLabel={entry.entry?.firstRatedAt ? 'Rated' : 'Added'}
+              entryDateIso={entry.entry?.firstRatedAt ?? entry.createdAt}
               onChangeStatus={async (next) => {
                 if (!user?.email) return
                 setItems((prev) =>
@@ -396,6 +396,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                         note: row.entry?.note ?? null,
                         updatedAt:
                           row.entry?.updatedAt ?? new Date().toISOString(),
+                        firstRatedAt: row.entry?.firstRatedAt ?? null,
                       },
                     }
                   }),
@@ -426,6 +427,9 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       : row.media_items
                     if (!media) return row
                     if (media.id !== entry.media.id) return row
+                    const nextFirstRatedAt =
+                      row.entry?.firstRatedAt ??
+                      (next ? new Date().toISOString() : null)
                     return {
                       ...row,
                       entry: {
@@ -434,6 +438,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                         note: row.entry?.note ?? null,
                         updatedAt:
                           row.entry?.updatedAt ?? new Date().toISOString(),
+                        firstRatedAt: nextFirstRatedAt,
                       },
                     }
                   }),
@@ -472,6 +477,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                         note: next,
                         updatedAt:
                           row.entry?.updatedAt ?? new Date().toISOString(),
+                        firstRatedAt: row.entry?.firstRatedAt ?? null,
                       },
                     }
                   }),
@@ -511,15 +517,17 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
             type={entry.media.type}
             posterUrl={entry.media.poster_url}
             synopsis={entry.media.description}
-            year={undefined}
+            year={entry.media.year ?? undefined}
+            runtimeMinutes={entry.media.duration_minutes ?? undefined}
+            genres={entry.media.genres ?? undefined}
             status={
               (entry.entry?.status as import('@/types').EntryStatus) ??
               'Planning'
             }
             rating={entry.entry?.rating ?? null}
             note={entry.entry?.note ?? null}
-            entryDateLabel="Added"
-            entryDateIso={entry.createdAt}
+            entryDateLabel={entry.entry?.firstRatedAt ? 'Rated' : 'Added'}
+            entryDateIso={entry.entry?.firstRatedAt ?? entry.createdAt}
             onChangeStatus={async (next) => {
               if (!user?.email) return
               setItems((prev) =>
@@ -537,6 +545,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       note: row.entry?.note ?? null,
                       updatedAt:
                         row.entry?.updatedAt ?? new Date().toISOString(),
+                      firstRatedAt: row.entry?.firstRatedAt ?? null,
                     },
                   }
                 }),
@@ -567,6 +576,9 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                     : row.media_items
                   if (!media) return row
                   if (media.id !== entry.media.id) return row
+                  const nextFirstRatedAt =
+                    row.entry?.firstRatedAt ??
+                    (next ? new Date().toISOString() : null)
                   return {
                     ...row,
                     entry: {
@@ -575,6 +587,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       note: row.entry?.note ?? null,
                       updatedAt:
                         row.entry?.updatedAt ?? new Date().toISOString(),
+                      firstRatedAt: nextFirstRatedAt,
                     },
                   }
                 }),
@@ -613,6 +626,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       note: next,
                       updatedAt:
                         row.entry?.updatedAt ?? new Date().toISOString(),
+                      firstRatedAt: row.entry?.firstRatedAt ?? null,
                     },
                   }
                 }),

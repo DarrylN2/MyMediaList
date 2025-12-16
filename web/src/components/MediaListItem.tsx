@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { MessageSquareText, Star } from 'lucide-react'
+import { Calendar, MessageSquareText, Pencil, Star } from 'lucide-react'
 
 import type { EntryStatus, MediaType } from '@/types'
 import { Badge } from '@/components/ui/badge'
@@ -37,6 +37,8 @@ export interface MediaListItemProps {
   posterUrl?: string | null
   synopsis?: string | null
   year?: number
+  runtimeMinutes?: number
+  genres?: string[] | null
 
   status?: EntryStatus
   rating?: number | null
@@ -58,6 +60,25 @@ function formatShortDate(iso?: string | null) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+function formatLongDate(iso?: string | null) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function formatDuration(minutes?: number) {
+  if (!minutes) return '—'
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  if (hours === 0) return `${remainingMinutes}m`
+  return `${hours}h${remainingMinutes > 0 ? ` ${remainingMinutes}m` : ''}`
+}
+
 export function MediaListItem({
   viewMode,
   href,
@@ -66,6 +87,8 @@ export function MediaListItem({
   posterUrl,
   synopsis,
   year,
+  runtimeMinutes,
+  genres,
   status,
   rating,
   note,
@@ -81,9 +104,10 @@ export function MediaListItem({
   const [noteDraft, setNoteDraft] = useState(note ?? '')
   const [compactRatingOpen, setCompactRatingOpen] = useState(false)
 
-  useEffect(() => {
-    if (!noteOpen) setNoteDraft(note ?? '')
-  }, [note, noteOpen])
+  const openNoteEditor = () => {
+    setNoteDraft(note ?? '')
+    setNoteOpen(true)
+  }
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -151,7 +175,7 @@ export function MediaListItem({
             <button
               type="button"
               className="text-muted-foreground hover:text-foreground"
-              onClick={() => setNoteOpen(true)}
+              onClick={openNoteEditor}
               disabled={busy}
               aria-label="Open notes"
             >
@@ -178,7 +202,13 @@ export function MediaListItem({
           </TooltipContent>
         </Tooltip>
 
-        <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
+        <Dialog
+          open={noteOpen}
+          onOpenChange={(open) => {
+            setNoteOpen(open)
+            if (open) setNoteDraft(note ?? '')
+          }}
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Notes</DialogTitle>
@@ -360,11 +390,34 @@ export function MediaListItem({
     )
   }
 
+  const typeLabel =
+    type === 'movie'
+      ? 'FILM'
+      : type === 'tv'
+        ? 'TV'
+        : type === 'anime'
+          ? 'ANIME'
+          : type === 'game'
+            ? 'GAME'
+            : 'MUSIC'
+
+  const genreParts = (genres ?? []).filter(Boolean).slice(0, 2)
+  const kicker = [typeLabel]
+    .concat(genreParts.map((g) => String(g).toUpperCase()))
+    .join(' / ')
+
+  const noteBody =
+    note?.trim() != null && note.trim().length > 0
+      ? note
+      : 'No notes yet. Click edit to add.'
+
+  const ratingNumber = rating != null && rating > 0 ? rating : null
+
   return (
-    <article className="flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/95 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg md:flex-row">
+    <article className="flex flex-col gap-5 rounded-3xl border border-white/70 bg-white/95 p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg md:flex-row md:items-stretch">
       <Link
         href={href}
-        className="relative h-32 w-24 flex-shrink-0 overflow-hidden rounded-2xl bg-muted md:h-44 md:w-32"
+        className="relative h-40 w-28 flex-shrink-0 overflow-hidden rounded-2xl bg-muted md:h-52 md:w-36"
       >
         {posterUrl ? (
           <Image
@@ -377,39 +430,106 @@ export function MediaListItem({
         ) : null}
       </Link>
 
-      <div className="flex flex-1 flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href={href} className="text-lg font-semibold hover:underline">
-            {title}
+      <div className="min-w-0 flex-1 space-y-3">
+        <div className="flex flex-wrap items-start gap-2">
+          <Link
+            href={href}
+            className="min-w-0 text-2xl font-bold leading-tight hover:underline"
+          >
+            <span className="line-clamp-2">{title}</span>
           </Link>
-          <Badge variant="secondary" className="capitalize">
-            {type}
-          </Badge>
-          {year ? <Badge variant="outline">{year}</Badge> : null}
-          <div className="ml-auto flex items-center gap-2">{noteButton}</div>
+          <div className="ml-auto flex items-start gap-2">{statusNode}</div>
         </div>
 
-        <p className="text-sm text-muted-foreground">{synopsis ?? '—'}</p>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          {year ? <span>{year}</span> : null}
+          {runtimeMinutes ? (
+            <>
+              <span>•</span>
+              <span>{formatDuration(runtimeMinutes)}</span>
+            </>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="h-4 w-1 rounded-full bg-amber-500" aria-hidden />
+          <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+            {kicker}
+          </span>
+        </div>
+
+        <p className="line-clamp-4 text-sm text-muted-foreground">
+          {synopsis ?? '—'}
+        </p>
       </div>
 
-      <div className="flex flex-col justify-between gap-3 md:w-64 md:text-right">
-        <div className="flex justify-start md:justify-end">{statusNode}</div>
-
-        {onChangeRating ? (
-          <div className="flex justify-start md:justify-end">
-            <RatingStars
-              rating={rating ?? 0}
-              interactive
-              onRatingChange={onChangeRating}
-            />
+      <div className="flex w-full flex-col gap-4 md:w-[360px] md:flex-shrink-0">
+        <section className="rounded-2xl border border-slate-100 bg-white/70 p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <MessageSquareText className="h-4 w-4" />
+              Notes
+            </div>
+            <button
+              type="button"
+              className="rounded-lg border bg-white px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+              onClick={openNoteEditor}
+              disabled={busy}
+              aria-label="Edit notes"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
           </div>
-        ) : (
-          <div className="flex justify-start md:justify-end">
-            <RatingStars rating={rating ?? 0} />
-          </div>
-        )}
+          {/* Mount the existing dialog implementation (used by other view modes). */}
+          {noteButton ? <div className="hidden">{noteButton}</div> : null}
+          <p
+            className={`mt-3 whitespace-pre-wrap text-sm ${
+              note?.trim() ? 'text-foreground' : 'text-muted-foreground'
+            }`}
+          >
+            {noteBody}
+          </p>
+        </section>
 
-        <div>{entryDate}</div>
+        <section className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+              Rating
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-200/60">
+              <Star className="h-6 w-6 text-amber-700" />
+            </div>
+          </div>
+
+          <div className="mt-2 flex items-end justify-between gap-3">
+            <div className="text-3xl font-bold text-amber-700">
+              {(ratingNumber ?? '—') as string | number}/10
+            </div>
+          </div>
+
+          <div className="mt-3">
+            {onChangeRating ? (
+              <RatingStars
+                rating={ratingNumber ?? 0}
+                interactive
+                onRatingChange={onChangeRating}
+                size="md"
+                showLabel={false}
+              />
+            ) : (
+              <RatingStars
+                rating={ratingNumber ?? 0}
+                size="md"
+                showLabel={false}
+              />
+            )}
+          </div>
+        </section>
+
+        <div className="mt-auto flex items-center justify-end gap-2 text-xs text-muted-foreground">
+          <Calendar className="h-4 w-4" />
+          <span>{formatLongDate(entryDateIso)}</span>
+        </div>
       </div>
     </article>
   )

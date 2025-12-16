@@ -221,6 +221,9 @@ export default function MediaDetailPage({
             title: media.title,
             posterUrl: media.posterUrl,
             description: media.description,
+            year: media.year,
+            durationMinutes: media.durationMinutes,
+            genres: media.genres,
           },
           entry: {
             status,

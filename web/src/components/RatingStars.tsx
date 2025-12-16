@@ -9,6 +9,7 @@ interface RatingStarsProps {
   interactive?: boolean
   onRatingChange?: (rating: number) => void
   size?: 'sm' | 'md' | 'lg'
+  showLabel?: boolean
 }
 
 export function RatingStars({
@@ -17,6 +18,7 @@ export function RatingStars({
   interactive = false,
   onRatingChange,
   size = 'md',
+  showLabel = true,
 }: RatingStarsProps) {
   const clampedRating = Math.max(0, Math.min(rating, maxRating))
   const sizeClasses = {
@@ -55,7 +57,7 @@ export function RatingStars({
           />
         </button>
       ))}
-      {rating > 0 && (
+      {showLabel && rating > 0 && (
         <span className="ml-2 text-sm text-muted-foreground">
           {rating}/{maxRating}
         </span>

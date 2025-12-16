@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Search, Filter, User, Home } from 'lucide-react'
@@ -72,20 +72,22 @@ export function TopBar() {
   const [searchTerm, setSearchTerm] = useState(
     () => searchParams.get('query') ?? '',
   )
-  const [category, setCategory] = useState<SearchCategoryFilter>(() =>
+  const [categoryDraft, setCategoryDraft] = useState<SearchCategoryFilter>(() =>
     parseCategoryFilter(searchParams.get('category')),
   )
   const [profileOpen, setProfileOpen] = useState(false)
   const { status, user, switchView } = useAuth()
 
-  useEffect(() => {
-    if (pathname !== '/search') return
-    const next = parseCategoryFilter(searchParams.get('category'))
-    setCategory((prev) => (prev === next ? prev : next))
-  }, [pathname, searchParams])
+  const category = useMemo(
+    () =>
+      pathname === '/search'
+        ? parseCategoryFilter(searchParams.get('category'))
+        : categoryDraft,
+    [pathname, searchParams, categoryDraft],
+  )
 
   const setCategoryParam = (next: SearchCategoryFilter) => {
-    setCategory(next)
+    setCategoryDraft(next)
 
     if (pathname !== '/search') return
     const params = new URLSearchParams(searchParams.toString())
