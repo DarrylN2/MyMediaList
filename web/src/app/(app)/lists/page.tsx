@@ -50,8 +50,13 @@ type RatedItem = {
   status: EntryStatus
   rating: number
   updatedAt: string
+  firstRatedAt: string | null
   note: string | null
   coverUrl: string | null
+  description: string | null
+  year: number | null
+  durationMinutes: number | null
+  genres: string[] | null
   provider: string
   providerId: string
 }
@@ -305,12 +310,17 @@ export default function ListsPage() {
             rating: number
             note: string | null
             updatedAt: string
+            firstRatedAt: string | null
             media: {
               title: string
               posterUrl: string | null
+              description: string | null
               type: MediaType
               provider: string
               providerId: string
+              year: number | null
+              durationMinutes: number | null
+              genres: string[] | null
             }
           }>
         }
@@ -323,8 +333,13 @@ export default function ListsPage() {
               status: item.status,
               rating: item.rating,
               updatedAt: item.updatedAt,
+              firstRatedAt: item.firstRatedAt ?? null,
               note: item.note,
               coverUrl: item.media.posterUrl,
+              description: item.media.description ?? null,
+              year: item.media.year ?? null,
+              durationMinutes: item.media.durationMinutes ?? null,
+              genres: item.media.genres ?? null,
               provider: item.media.provider,
               providerId: item.media.providerId,
             })),
@@ -927,13 +942,15 @@ export default function ListsPage() {
                       title={item.title}
                       type={item.type}
                       posterUrl={item.coverUrl}
-                      synopsis={null}
-                      year={undefined}
+                      synopsis={item.description ?? null}
+                      year={item.year ?? undefined}
+                      runtimeMinutes={item.durationMinutes ?? undefined}
+                      genres={item.genres ?? undefined}
                       status={item.status}
                       rating={item.rating}
                       note={item.note}
                       entryDateLabel="Rated"
-                      entryDateIso={item.updatedAt}
+                      entryDateIso={item.firstRatedAt ?? item.updatedAt}
                       onChangeStatus={async (next) => {
                         const prev = ratedItems
                         setRatedItems((items) =>
@@ -1004,13 +1021,15 @@ export default function ListsPage() {
                     title={item.title}
                     type={item.type}
                     posterUrl={item.coverUrl}
-                    synopsis={null}
-                    year={undefined}
+                    synopsis={item.description ?? null}
+                    year={item.year ?? undefined}
+                    runtimeMinutes={item.durationMinutes ?? undefined}
+                    genres={item.genres ?? undefined}
                     status={item.status}
                     rating={item.rating}
                     note={item.note}
                     entryDateLabel="Rated"
-                    entryDateIso={item.updatedAt}
+                    entryDateIso={item.firstRatedAt ?? item.updatedAt}
                     onChangeStatus={async (next) => {
                       const prev = ratedItems
                       setRatedItems((items) =>
@@ -1080,13 +1099,15 @@ export default function ListsPage() {
                     title={item.title}
                     type={item.type}
                     posterUrl={item.coverUrl}
-                    synopsis={null}
-                    year={undefined}
+                    synopsis={item.description ?? null}
+                    year={item.year ?? undefined}
+                    runtimeMinutes={item.durationMinutes ?? undefined}
+                    genres={item.genres ?? undefined}
                     status={item.status}
                     rating={item.rating}
                     note={item.note}
                     entryDateLabel="Rated"
-                    entryDateIso={item.updatedAt}
+                    entryDateIso={item.firstRatedAt ?? item.updatedAt}
                     onChangeStatus={async (next) => {
                       const prev = ratedItems
                       setRatedItems((items) =>
