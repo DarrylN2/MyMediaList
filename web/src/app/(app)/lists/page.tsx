@@ -844,7 +844,7 @@ export default function ListsPage() {
         </div>
 
         <div className="mt-6 divide-y divide-slate-200">
-          <div className="hidden grid-cols-[48px,1fr,90px,80px,120px,130px,120px,44px] items-center gap-3 pb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground lg:grid">
+          <div className="hidden grid-cols-[48px_1fr_90px_80px_120px_130px_120px_44px] items-center gap-3 pb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground lg:grid">
             <span />
             <span>Title</span>
             <span>Type</span>
