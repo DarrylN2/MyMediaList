@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { Filter, MessageSquareText, Plus, Search } from 'lucide-react'
+import { ArrowUpDown, MessageSquareText, Plus, Search } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,14 @@ import type { EntryStatus, MediaType } from '@/types'
 
 const FILTER_OPTIONS = ['all', 'movies', 'anime', 'games'] as const
 type FilterOption = (typeof FILTER_OPTIONS)[number]
+
+const LIST_SORT_OPTIONS = [
+  { value: 'recent', label: 'Most recent' },
+  { value: 'title', label: 'Title (A → Z)' },
+  { value: 'items_desc', label: 'Items (high → low)' },
+  { value: 'items_asc', label: 'Items (low → high)' },
+] as const
+type ListSort = (typeof LIST_SORT_OPTIONS)[number]['value']
 
 type RatedItem = {
   title: string
@@ -50,6 +58,15 @@ const RATED_SORT_OPTIONS = [
 ] as const
 type RatedSort = (typeof RATED_SORT_OPTIONS)[number]['value']
 
+function parseMockUpdatedAtDaysAgo(value: string) {
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'today') return 0
+  if (normalized === 'yesterday') return 1
+  const match = normalized.match(/(\d+)\s+day/)
+  if (match?.[1]) return Number(match[1])
+  return Number.POSITIVE_INFINITY
+}
+
 function buildMediaRouteId(media: {
   provider: string
   providerId: string
@@ -65,6 +82,7 @@ function buildMediaRouteId(media: {
 export default function ListsPage() {
   const { user } = useAuth()
   const [query, setQuery] = useState('')
+  const [listSort, setListSort] = useState<ListSort>('recent')
   const [activeFilter, setActiveFilter] = useState<FilterOption>('all')
   const [userLists, setUserLists] = useState<
     Array<{
@@ -105,6 +123,26 @@ export default function ListsPage() {
     })
   }, [query, userLists])
 
+  const visibleUserLists = useMemo(() => {
+    const sorted = [...filteredUserLists].sort((a, b) => {
+      switch (listSort) {
+        case 'recent':
+          return b.updatedAt.localeCompare(a.updatedAt)
+        case 'title':
+          return a.title.localeCompare(b.title, undefined, {
+            sensitivity: 'base',
+          })
+        case 'items_desc':
+          return b.itemCount - a.itemCount
+        case 'items_asc':
+          return a.itemCount - b.itemCount
+        default:
+          return 0
+      }
+    })
+    return sorted
+  }, [filteredUserLists, listSort])
+
   const filteredMockLists = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
@@ -123,6 +161,29 @@ export default function ListsPage() {
       )
     })
   }, [activeFilter, query])
+
+  const visibleMockLists = useMemo(() => {
+    const sorted = [...filteredMockLists].sort((a, b) => {
+      switch (listSort) {
+        case 'recent':
+          return (
+            parseMockUpdatedAtDaysAgo(a.updatedAt) -
+            parseMockUpdatedAtDaysAgo(b.updatedAt)
+          )
+        case 'title':
+          return a.title.localeCompare(b.title, undefined, {
+            sensitivity: 'base',
+          })
+        case 'items_desc':
+          return b.itemCount - a.itemCount
+        case 'items_asc':
+          return a.itemCount - b.itemCount
+        default:
+          return 0
+      }
+    })
+    return sorted
+  }, [filteredMockLists, listSort])
 
   const totalItems = useMemo(() => {
     if (user?.email) {
@@ -346,18 +407,26 @@ export default function ListsPage() {
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Filter your lists"
+              placeholder="Search your lists"
               className="h-auto border-0 bg-transparent px-0 text-base focus-visible:ring-0"
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="rounded-full border-dashed bg-white text-muted-foreground"
-            >
-              <Filter className="h-3.5 w-3.5" />
-              Filter
-            </Button>
+            <div className="flex items-center gap-2 rounded-full border border-dashed bg-white px-3 py-1 text-muted-foreground">
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              <select
+                value={listSort}
+                onChange={(event) =>
+                  setListSort(event.target.value as ListSort)
+                }
+                className="h-8 bg-transparent text-sm focus:outline-none"
+                aria-label="Sort lists"
+              >
+                {LIST_SORT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <Button className="h-12 rounded-3xl px-5 text-base shadow-lg">
@@ -409,13 +478,13 @@ export default function ListsPage() {
             <div className="rounded-3xl border border-rose-100 bg-rose-50/80 p-10 text-center text-rose-700">
               {userListsError}
             </div>
-          ) : filteredUserLists.length === 0 ? (
+          ) : visibleUserLists.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-muted-foreground/30 bg-white/80 p-10 text-center text-muted-foreground">
-              No lists match your filters. Try a different search.
+              No lists match your search. Try a different query.
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredUserLists.map((list) => (
+              {visibleUserLists.map((list) => (
                 <Link
                   key={list.id}
                   href={`/lists/${list.id}`}
@@ -475,13 +544,13 @@ export default function ListsPage() {
               ))}
             </div>
           )
-        ) : filteredMockLists.length === 0 ? (
+        ) : visibleMockLists.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-muted-foreground/30 bg-white/80 p-10 text-center text-muted-foreground">
             No lists match your filters. Try a different search or category.
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredMockLists.map((list) => (
+            {visibleMockLists.map((list) => (
               <Link
                 key={list.id}
                 href={`/lists/${list.id}`}
