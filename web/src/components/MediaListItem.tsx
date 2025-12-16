@@ -251,23 +251,81 @@ export function MediaListItem({
     </span>
   )
 
+  const typeLabel =
+    type === 'movie'
+      ? 'FILM'
+      : type === 'tv'
+        ? 'TV'
+        : type === 'anime'
+          ? 'ANIME'
+          : type === 'game'
+            ? 'GAME'
+            : 'MUSIC'
+
+  const genreParts = (genres ?? []).filter(Boolean).map(String)
+  const visibleGenres = genreParts.slice(0, 3)
+  const remainingGenreCount = Math.max(
+    0,
+    genreParts.length - visibleGenres.length,
+  )
+
+  const metaSuffixParts: string[] = []
+  if (year != null) metaSuffixParts.push(String(year))
+  if (runtimeMinutes != null)
+    metaSuffixParts.push(formatDuration(runtimeMinutes))
+  const metaSuffix = metaSuffixParts.join(' • ')
+
   if (viewMode === 'compact') {
     return (
-      <div className="grid grid-cols-[48px_1fr_90px_80px_120px_130px_120px_44px] items-center gap-3 py-3">
-        <Link
-          href={href}
-          className="relative h-12 w-12 overflow-hidden rounded-xl bg-muted"
-        >
-          {posterUrl ? (
-            <Image
-              src={posterUrl}
-              alt={`${title} cover`}
-              fill
-              sizes="48px"
-              className="object-cover"
-            />
-          ) : null}
-        </Link>
+      <div className="grid grid-cols-[64px_1fr_120px_130px_120px_44px] items-center gap-3 py-3">
+        <div className="flex flex-col items-start gap-1">
+          <Link
+            href={href}
+            className="relative h-12 w-12 overflow-hidden rounded-xl bg-muted"
+          >
+            {posterUrl ? (
+              <Image
+                src={posterUrl}
+                alt={`${title} cover`}
+                fill
+                sizes="48px"
+                className="object-cover"
+              />
+            ) : null}
+          </Link>
+
+          <div className="flex w-full flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                {typeLabel}
+              </span>
+              {metaSuffix ? (
+                <span className="text-[10px] text-muted-foreground">
+                  • {metaSuffix}
+                </span>
+              ) : null}
+            </div>
+
+            {visibleGenres.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1">
+                {visibleGenres.map((g) => (
+                  <Badge
+                    key={`compact-genre-${href}-${g}`}
+                    variant="outline"
+                    className="px-1 py-0 text-[10px]"
+                  >
+                    {g}
+                  </Badge>
+                ))}
+                {remainingGenreCount > 0 ? (
+                  <Badge variant="secondary" className="px-1 py-0 text-[10px]">
+                    +{remainingGenreCount}
+                  </Badge>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
 
         <div className="min-w-0">
           <Link
@@ -277,14 +335,6 @@ export function MediaListItem({
             <span className="line-clamp-1">{title}</span>
           </Link>
         </div>
-
-        <div>
-          <Badge variant="secondary" className="capitalize">
-            {type}
-          </Badge>
-        </div>
-
-        <div className="text-sm text-muted-foreground">{year ?? ''}</div>
 
         <div>{statusNode}</div>
 
@@ -351,17 +401,43 @@ export function MediaListItem({
         </Link>
 
         <div className="space-y-2 p-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                {typeLabel}
+              </span>
+              {metaSuffix ? (
+                <span className="text-xs text-muted-foreground">
+                  • {metaSuffix}
+                </span>
+              ) : null}
+            </div>
+
+            {visibleGenres.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1">
+                {visibleGenres.map((g) => (
+                  <Badge
+                    key={`grid-genre-${href}-${g}`}
+                    variant="outline"
+                    className="text-xs"
+                  >
+                    {g}
+                  </Badge>
+                ))}
+                {remainingGenreCount > 0 ? (
+                  <Badge variant="secondary" className="text-xs">
+                    +{remainingGenreCount}
+                  </Badge>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <Link href={href} className="hover:underline">
                 <h3 className="line-clamp-2 font-semibold">{title}</h3>
               </Link>
-              <div className="mt-1 flex items-center gap-2">
-                <Badge variant="secondary" className="capitalize">
-                  {type}
-                </Badge>
-                {year ? <Badge variant="outline">{year}</Badge> : null}
-              </div>
             </div>
             <div className="flex items-center gap-2">{noteButton}</div>
           </div>
@@ -390,22 +466,6 @@ export function MediaListItem({
     )
   }
 
-  const typeLabel =
-    type === 'movie'
-      ? 'FILM'
-      : type === 'tv'
-        ? 'TV'
-        : type === 'anime'
-          ? 'ANIME'
-          : type === 'game'
-            ? 'GAME'
-            : 'MUSIC'
-
-  const genreParts = (genres ?? []).filter(Boolean).slice(0, 2)
-  const kicker = [typeLabel]
-    .concat(genreParts.map((g) => String(g).toUpperCase()))
-    .join(' / ')
-
   const noteBody =
     note?.trim() != null && note.trim().length > 0
       ? note
@@ -415,20 +475,55 @@ export function MediaListItem({
 
   return (
     <article className="flex flex-col gap-5 rounded-3xl border border-white/70 bg-white/95 p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg md:flex-row md:items-stretch">
-      <Link
-        href={href}
-        className="relative h-40 w-28 flex-shrink-0 overflow-hidden rounded-2xl bg-muted md:h-52 md:w-36"
-      >
-        {posterUrl ? (
-          <Image
-            src={posterUrl}
-            alt={title}
-            fill
-            sizes="128px"
-            className="object-cover"
-          />
-        ) : null}
-      </Link>
+      <div className="flex w-28 flex-col items-start gap-2 md:w-36">
+        <Link
+          href={href}
+          className="relative h-40 w-28 flex-shrink-0 overflow-hidden rounded-2xl bg-muted md:h-52 md:w-36"
+        >
+          {posterUrl ? (
+            <Image
+              src={posterUrl}
+              alt={title}
+              fill
+              sizes="128px"
+              className="object-cover"
+            />
+          ) : null}
+        </Link>
+
+        <div className="w-full space-y-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="h-4 w-1 rounded-full bg-amber-500" aria-hidden />
+            <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+              {typeLabel}
+            </span>
+            {metaSuffix ? (
+              <span className="text-xs text-muted-foreground">
+                • {metaSuffix}
+              </span>
+            ) : null}
+          </div>
+
+          {visibleGenres.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-1">
+              {visibleGenres.map((g) => (
+                <Badge
+                  key={`detailed-genre-${href}-${g}`}
+                  variant="outline"
+                  className="text-[10px]"
+                >
+                  {g}
+                </Badge>
+              ))}
+              {remainingGenreCount > 0 ? (
+                <Badge variant="secondary" className="text-[10px]">
+                  +{remainingGenreCount}
+                </Badge>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
 
       <div className="min-w-0 flex-1 space-y-3">
         <div className="flex flex-wrap items-start gap-2">
@@ -438,24 +533,6 @@ export function MediaListItem({
           >
             <span className="line-clamp-2">{title}</span>
           </Link>
-          <div className="ml-auto flex items-start gap-2">{statusNode}</div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          {year ? <span>{year}</span> : null}
-          {runtimeMinutes ? (
-            <>
-              <span>•</span>
-              <span>{formatDuration(runtimeMinutes)}</span>
-            </>
-          ) : null}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="h-4 w-1 rounded-full bg-amber-500" aria-hidden />
-          <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-            {kicker}
-          </span>
         </div>
 
         <p className="line-clamp-4 text-sm text-muted-foreground">
@@ -491,44 +568,50 @@ export function MediaListItem({
           </p>
         </section>
 
-        <section className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+        <section className="flex items-center justify-between gap-3 rounded-2xl border border-amber-100 bg-amber-50/60 p-3 shadow-sm">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold uppercase leading-none tracking-wide text-amber-700">
               Rating
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-200/60">
-              <Star className="h-6 w-6 text-amber-700" />
+
+            <div className="mt-1">
+              <div className="text-2xl font-bold text-amber-700">
+                {(ratingNumber ?? '—') as string | number}/10
+              </div>
+            </div>
+
+            <div className="mt-2">
+              {onChangeRating ? (
+                <RatingStars
+                  rating={ratingNumber ?? 0}
+                  interactive
+                  onRatingChange={onChangeRating}
+                  size="md"
+                  showLabel={false}
+                />
+              ) : (
+                <RatingStars
+                  rating={ratingNumber ?? 0}
+                  size="md"
+                  showLabel={false}
+                />
+              )}
             </div>
           </div>
 
-          <div className="mt-2 flex items-end justify-between gap-3">
-            <div className="text-3xl font-bold text-amber-700">
-              {(ratingNumber ?? '—') as string | number}/10
-            </div>
-          </div>
-
-          <div className="mt-3">
-            {onChangeRating ? (
-              <RatingStars
-                rating={ratingNumber ?? 0}
-                interactive
-                onRatingChange={onChangeRating}
-                size="md"
-                showLabel={false}
-              />
-            ) : (
-              <RatingStars
-                rating={ratingNumber ?? 0}
-                size="md"
-                showLabel={false}
-              />
-            )}
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-200/60">
+            <Star className="h-6 w-6 text-amber-700" />
           </div>
         </section>
 
-        <div className="mt-auto flex items-center justify-end gap-2 text-xs text-muted-foreground">
-          <Calendar className="h-4 w-4" />
-          <span>{formatLongDate(entryDateIso)}</span>
+        <div className="mt-auto flex items-center justify-end gap-2 text-xs">
+          {statusNode ? (
+            <div className="text-foreground">{statusNode}</div>
+          ) : null}
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Calendar className="h-4 w-4" />
+            <span>{formatLongDate(entryDateIso)}</span>
+          </div>
         </div>
       </div>
     </article>

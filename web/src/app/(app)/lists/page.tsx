@@ -916,12 +916,10 @@ export default function ListsPage() {
             </div>
           ) : ratedViewMode === 'compact' ? (
             <div className="overflow-x-auto rounded-2xl border bg-white/95 shadow-sm">
-              <div className="min-w-[920px] divide-y divide-slate-200 p-2">
-                <div className="grid grid-cols-[48px_1fr_90px_80px_120px_130px_120px_44px] items-center gap-3 px-2 pb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="min-w-[760px] divide-y divide-slate-200 p-2">
+                <div className="grid grid-cols-[64px_1fr_120px_130px_120px_44px] items-center gap-3 px-2 pb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   <span />
                   <span>Title</span>
-                  <span>Type</span>
-                  <span>Year</span>
                   <span>Status</span>
                   <span>Rating</span>
                   <span>Date</span>
