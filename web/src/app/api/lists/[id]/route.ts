@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase-server'
+import type { EntryStatus } from '@/types'
 
 export async function GET(
   request: NextRequest,
@@ -48,7 +49,49 @@ export async function GET(
 
     if (itemsError) throw itemsError
 
-    return NextResponse.json({ list, items: items ?? [] })
+    const mediaIds = (items ?? [])
+      .map((row) => {
+        const media = Array.isArray(row.media_items)
+          ? row.media_items[0]
+          : row.media_items
+        return (media?.id as string | undefined) ?? undefined
+      })
+      .filter(Boolean) as string[]
+
+    const { data: entries, error: entryError } = mediaIds.length
+      ? await supabase
+          .from('user_media')
+          .select('media_id,status,user_rating,note,updated_at')
+          .eq('user_identifier', userId)
+          .in('media_id', mediaIds)
+      : { data: [], error: null }
+
+    if (entryError) throw entryError
+
+    const entryByMediaId = new Map(
+      (entries ?? []).map((entry) => [
+        entry.media_id as string,
+        {
+          status: entry.status as EntryStatus,
+          rating: (entry.user_rating as number | null) ?? null,
+          note: (entry.note as string | null) ?? null,
+          updatedAt: entry.updated_at as string,
+        },
+      ]),
+    )
+
+    const itemsWithEntry = (items ?? []).map((row) => {
+      const media = Array.isArray(row.media_items)
+        ? row.media_items[0]
+        : row.media_items
+      const mediaId = (media?.id as string | undefined) ?? undefined
+      return {
+        ...row,
+        entry: mediaId ? (entryByMediaId.get(mediaId) ?? null) : null,
+      }
+    })
+
+    return NextResponse.json({ list, items: itemsWithEntry })
   } catch (error) {
     console.error('Failed to fetch list detail', error)
     return NextResponse.json({ error: 'Unable to load list.' }, { status: 500 })

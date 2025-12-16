@@ -14,6 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { MediaListItem } from '@/components/MediaListItem'
 import { useAuth } from '@/context/AuthContext'
 import { mockLists } from '@/data/mockLists'
 import type { EntryStatus, MediaType } from '@/types'
@@ -29,6 +30,8 @@ type RatedItem = {
   updatedAt: string
   note: string | null
   coverUrl: string | null
+  provider: string
+  providerId: string
 }
 
 const badgeTone: Record<MediaType, string> = {
@@ -46,6 +49,18 @@ const RATED_SORT_OPTIONS = [
   { value: 'title', label: 'Title (A → Z)' },
 ] as const
 type RatedSort = (typeof RATED_SORT_OPTIONS)[number]['value']
+
+function buildMediaRouteId(media: {
+  provider: string
+  providerId: string
+  type: MediaType
+}) {
+  if (media.provider === 'tmdb') {
+    if (media.type === 'tv') return `tmdb-tv-${media.providerId}`
+    return `tmdb-${media.providerId}`
+  }
+  return `${media.provider}-${media.providerId}`
+}
 
 export default function ListsPage() {
   const { user } = useAuth()
@@ -218,6 +233,8 @@ export default function ListsPage() {
               title: string
               posterUrl: string | null
               type: MediaType
+              provider: string
+              providerId: string
             }
           }>
         }
@@ -232,6 +249,8 @@ export default function ListsPage() {
               updatedAt: item.updatedAt,
               note: item.note,
               coverUrl: item.media.posterUrl,
+              provider: item.media.provider,
+              providerId: item.media.providerId,
             })),
           )
         }
@@ -285,6 +304,38 @@ export default function ListsPage() {
   }, [ratedItems, ratedQuery, ratedSort, ratedStatus, ratedType])
 
   const formatRatedDate = formatShortDate
+
+  const persistRatedPatch = async (
+    item: RatedItem,
+    entry: Partial<{
+      status: EntryStatus
+      rating: number | null
+      note: string
+    }>,
+  ) => {
+    if (!user?.email) return
+
+    const res = await fetch('/api/list', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user.email,
+        media: {
+          provider: item.provider,
+          providerId: item.providerId,
+          type: item.type,
+          title: item.title,
+          posterUrl: item.coverUrl ?? undefined,
+          description: undefined,
+        },
+        entry,
+      }),
+    })
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null)
+      throw new Error(payload?.error ?? 'Unable to save changes.')
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -581,11 +632,15 @@ export default function ListsPage() {
         </div>
 
         <div className="mt-6 divide-y divide-slate-200">
-          <div className="hidden grid-cols-[auto,1fr,120px,90px] gap-4 pb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid">
+          <div className="hidden grid-cols-[48px,1fr,90px,80px,120px,130px,120px,44px] items-center gap-3 pb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground lg:grid">
+            <span />
             <span>Title</span>
-            <span>Summary</span>
+            <span>Type</span>
+            <span>Year</span>
             <span>Status</span>
-            <span className="text-right">Rating</span>
+            <span>Rating</span>
+            <span>Date</span>
+            <span className="text-right">Notes</span>
           </div>
           {!user ? (
             <div className="py-6 text-sm text-muted-foreground">
@@ -603,68 +658,143 @@ export default function ListsPage() {
             </div>
           ) : (
             visibleRatedItems.map((item) => (
-              <div
-                key={`${item.type}-${item.title}-${item.updatedAt}`}
-                className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-[auto,1fr,120px,90px]"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="relative h-12 w-12 overflow-hidden rounded-xl bg-muted">
-                    {item.coverUrl ? (
-                      <Image
-                        src={item.coverUrl}
-                        alt={`${item.title} cover`}
-                        fill
-                        sizes="48px"
-                        className="object-cover"
-                      />
-                    ) : null}
-                  </div>
-                  <div>
-                    <p className="font-medium leading-tight">{item.title}</p>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant="secondary"
-                        className={`capitalize ${badgeTone[item.type]}`}
-                      >
-                        {item.type}
-                      </Badge>
-                    </div>
-                  </div>
+              <div key={`${item.type}-${item.providerId}-${item.updatedAt}`}>
+                <div className="hidden lg:block">
+                  <MediaListItem
+                    viewMode="compact"
+                    href={`/media/${buildMediaRouteId({
+                      provider: item.provider,
+                      providerId: item.providerId,
+                      type: item.type,
+                    })}`}
+                    title={item.title}
+                    type={item.type}
+                    posterUrl={item.coverUrl}
+                    synopsis={null}
+                    year={undefined}
+                    status={item.status}
+                    rating={item.rating}
+                    note={item.note}
+                    entryDateLabel="Rated"
+                    entryDateIso={item.updatedAt}
+                    onChangeStatus={async (next) => {
+                      const prev = ratedItems
+                      setRatedItems((items) =>
+                        items.map((x) =>
+                          x.providerId === item.providerId &&
+                          x.type === item.type
+                            ? { ...x, status: next }
+                            : x,
+                        ),
+                      )
+                      try {
+                        await persistRatedPatch(item, { status: next })
+                      } catch {
+                        setRatedItems(prev)
+                      }
+                    }}
+                    onChangeRating={async (next) => {
+                      const prev = ratedItems
+                      setRatedItems((items) =>
+                        items.map((x) =>
+                          x.providerId === item.providerId &&
+                          x.type === item.type
+                            ? { ...x, rating: next }
+                            : x,
+                        ),
+                      )
+                      try {
+                        await persistRatedPatch(item, { rating: next })
+                      } catch {
+                        setRatedItems(prev)
+                      }
+                    }}
+                    onSaveNote={async (next) => {
+                      const prev = ratedItems
+                      setRatedItems((items) =>
+                        items.map((x) =>
+                          x.providerId === item.providerId &&
+                          x.type === item.type
+                            ? { ...x, note: next }
+                            : x,
+                        ),
+                      )
+                      try {
+                        await persistRatedPatch(item, { note: next })
+                      } catch {
+                        setRatedItems(prev)
+                      }
+                    }}
+                  />
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <p className="line-clamp-2 text-sm text-muted-foreground">
-                    {item.note ? item.note : '—'}
-                  </p>
-                  {item.note ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="text-muted-foreground hover:text-foreground"
-                          aria-label="View note"
-                        >
-                          <MessageSquareText className="h-4 w-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent sideOffset={8}>
-                        {item.note}
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : null}
-                </div>
-
-                <div className="flex items-center text-sm text-muted-foreground">
-                  {item.status}
-                </div>
-
-                <div className="flex items-center justify-between sm:justify-end sm:text-right">
-                  <span className="text-lg font-semibold text-foreground">
-                    {item.rating}/10
-                  </span>
-                  <span className="text-xs text-muted-foreground sm:ml-2">
-                    Rated {formatRatedDate(item.updatedAt)}
-                  </span>
+                <div className="lg:hidden">
+                  <MediaListItem
+                    viewMode="detailed"
+                    href={`/media/${buildMediaRouteId({
+                      provider: item.provider,
+                      providerId: item.providerId,
+                      type: item.type,
+                    })}`}
+                    title={item.title}
+                    type={item.type}
+                    posterUrl={item.coverUrl}
+                    synopsis={null}
+                    year={undefined}
+                    status={item.status}
+                    rating={item.rating}
+                    note={item.note}
+                    entryDateLabel="Rated"
+                    entryDateIso={item.updatedAt}
+                    onChangeStatus={async (next) => {
+                      const prev = ratedItems
+                      setRatedItems((items) =>
+                        items.map((x) =>
+                          x.providerId === item.providerId &&
+                          x.type === item.type
+                            ? { ...x, status: next }
+                            : x,
+                        ),
+                      )
+                      try {
+                        await persistRatedPatch(item, { status: next })
+                      } catch {
+                        setRatedItems(prev)
+                      }
+                    }}
+                    onChangeRating={async (next) => {
+                      const prev = ratedItems
+                      setRatedItems((items) =>
+                        items.map((x) =>
+                          x.providerId === item.providerId &&
+                          x.type === item.type
+                            ? { ...x, rating: next }
+                            : x,
+                        ),
+                      )
+                      try {
+                        await persistRatedPatch(item, { rating: next })
+                      } catch {
+                        setRatedItems(prev)
+                      }
+                    }}
+                    onSaveNote={async (next) => {
+                      const prev = ratedItems
+                      setRatedItems((items) =>
+                        items.map((x) =>
+                          x.providerId === item.providerId &&
+                          x.type === item.type
+                            ? { ...x, note: next }
+                            : x,
+                        ),
+                      )
+                      try {
+                        await persistRatedPatch(item, { note: next })
+                      } catch {
+                        setRatedItems(prev)
+                      }
+                    }}
+                  />
                 </div>
               </div>
             ))

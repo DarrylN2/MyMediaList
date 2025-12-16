@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { MediaListItem } from '@/components/MediaListItem'
 import type { MediaType } from '@/types'
 
 type ListDetail = {
@@ -52,6 +53,12 @@ type ListItem = {
         source: string
         source_id: string
       }>
+  entry?: {
+    status: import('@/types').EntryStatus
+    rating: number | null
+    note: string | null
+    updatedAt: string
+  } | null
 }
 
 function buildMediaRouteId(media: {
@@ -138,12 +145,14 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
           createdAt: item.created_at,
           media,
           routeId: buildMediaRouteId(media),
+          entry: item.entry ?? null,
         }
       })
       .filter(Boolean) as Array<{
       createdAt: string
       media: NonNullable<Exclude<ListItem['media_items'], Array<unknown>>>
       routeId: string
+      entry: NonNullable<ListItem['entry']> | null
     }>
 
     const filtered = normalized.filter((entry) => {
@@ -199,35 +208,152 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
     if (viewMode === 'compact') {
       return (
         <div className="overflow-x-auto rounded-2xl border bg-white/95 shadow-sm">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Added</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {processedItems.map((entry) => (
-                <TableRow key={`${entry.createdAt}-${entry.media.id}`}>
-                  <TableCell>
-                    <Link
-                      href={`/media/${entry.routeId}`}
-                      className="font-medium hover:underline"
-                    >
-                      {entry.media.title}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="capitalize">
-                    {entry.media.type}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatAddedAt(entry.createdAt)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="min-w-[920px] divide-y divide-slate-200 p-2">
+            <div className="grid grid-cols-[48px,1fr,90px,80px,120px,130px,120px,44px] items-center gap-3 px-2 pb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <span />
+              <span>Title</span>
+              <span>Type</span>
+              <span>Year</span>
+              <span>Status</span>
+              <span>Rating</span>
+              <span>Date</span>
+              <span className="text-right">Notes</span>
+            </div>
+            {processedItems.map((entry) => (
+              <MediaListItem
+                key={`${entry.createdAt}-${entry.media.id}`}
+                viewMode="compact"
+                href={`/media/${entry.routeId}`}
+                title={entry.media.title}
+                type={entry.media.type}
+                posterUrl={entry.media.poster_url}
+                synopsis={entry.media.description}
+                year={undefined}
+                status={
+                  (entry.entry?.status as import('@/types').EntryStatus) ??
+                  'Planning'
+                }
+                rating={entry.entry?.rating ?? null}
+                note={entry.entry?.note ?? null}
+                entryDateLabel="Added"
+                entryDateIso={entry.createdAt}
+                onChangeStatus={async (next) => {
+                  if (!user?.email) return
+                  setItems((prev) =>
+                    prev.map((row) => {
+                      const media = Array.isArray(row.media_items)
+                        ? row.media_items[0]
+                        : row.media_items
+                      if (!media) return row
+                      if (media.id !== entry.media.id) return row
+                      return {
+                        ...row,
+                        entry: {
+                          status: next,
+                          rating: row.entry?.rating ?? null,
+                          note: row.entry?.note ?? null,
+                          updatedAt:
+                            row.entry?.updatedAt ?? new Date().toISOString(),
+                        },
+                      }
+                    }),
+                  )
+                  await fetch('/api/list', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      userId: user.email,
+                      media: {
+                        provider: entry.media.source,
+                        providerId: entry.media.source_id,
+                        type: entry.media.type,
+                        title: entry.media.title,
+                        posterUrl: entry.media.poster_url ?? undefined,
+                        description: entry.media.description ?? undefined,
+                      },
+                      entry: { status: next },
+                    }),
+                  })
+                }}
+                onChangeRating={async (next) => {
+                  if (!user?.email) return
+                  setItems((prev) =>
+                    prev.map((row) => {
+                      const media = Array.isArray(row.media_items)
+                        ? row.media_items[0]
+                        : row.media_items
+                      if (!media) return row
+                      if (media.id !== entry.media.id) return row
+                      return {
+                        ...row,
+                        entry: {
+                          status: row.entry?.status ?? 'Planning',
+                          rating: next,
+                          note: row.entry?.note ?? null,
+                          updatedAt:
+                            row.entry?.updatedAt ?? new Date().toISOString(),
+                        },
+                      }
+                    }),
+                  )
+                  await fetch('/api/list', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      userId: user.email,
+                      media: {
+                        provider: entry.media.source,
+                        providerId: entry.media.source_id,
+                        type: entry.media.type,
+                        title: entry.media.title,
+                        posterUrl: entry.media.poster_url ?? undefined,
+                        description: entry.media.description ?? undefined,
+                      },
+                      entry: { rating: next },
+                    }),
+                  })
+                }}
+                onSaveNote={async (next) => {
+                  if (!user?.email) return
+                  setItems((prev) =>
+                    prev.map((row) => {
+                      const media = Array.isArray(row.media_items)
+                        ? row.media_items[0]
+                        : row.media_items
+                      if (!media) return row
+                      if (media.id !== entry.media.id) return row
+                      return {
+                        ...row,
+                        entry: {
+                          status: row.entry?.status ?? 'Planning',
+                          rating: row.entry?.rating ?? null,
+                          note: next,
+                          updatedAt:
+                            row.entry?.updatedAt ?? new Date().toISOString(),
+                        },
+                      }
+                    }),
+                  )
+                  await fetch('/api/list', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      userId: user.email,
+                      media: {
+                        provider: entry.media.source,
+                        providerId: entry.media.source_id,
+                        type: entry.media.type,
+                        title: entry.media.title,
+                        posterUrl: entry.media.poster_url ?? undefined,
+                        description: entry.media.description ?? undefined,
+                      },
+                      entry: { note: next },
+                    }),
+                  })
+                }}
+              />
+            ))}
+          </div>
         </div>
       )
     }
@@ -236,45 +362,138 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
       return (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {processedItems.map((entry) => (
-            <Link
+            <MediaListItem
               key={`${entry.createdAt}-${entry.media.id}`}
+              viewMode="grid"
               href={`/media/${entry.routeId}`}
-              className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-            >
-              <article className="overflow-hidden rounded-3xl border border-white/70 bg-white/95 shadow-sm transition group-hover:-translate-y-0.5 group-hover:shadow-lg">
-                <div className="relative aspect-[2/3] w-full bg-muted">
-                  {entry.media.poster_url ? (
-                    <Image
-                      src={entry.media.poster_url}
-                      alt={entry.media.title}
-                      fill
-                      sizes="(max-width: 1024px) 50vw, 33vw"
-                      className="object-cover"
-                    />
-                  ) : null}
-                </div>
-                <div className="space-y-2 p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="line-clamp-2 font-semibold">
-                      {entry.media.title}
-                    </h3>
-                    <Badge variant="secondary" className="capitalize">
-                      {entry.media.type}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Added {formatAddedAt(entry.createdAt)}
-                  </p>
-                  {entry.media.description ? (
-                    <p className="line-clamp-2 text-sm text-muted-foreground">
-                      {entry.media.description}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">—</p>
-                  )}
-                </div>
-              </article>
-            </Link>
+              title={entry.media.title}
+              type={entry.media.type}
+              posterUrl={entry.media.poster_url}
+              synopsis={entry.media.description}
+              year={undefined}
+              status={
+                (entry.entry?.status as import('@/types').EntryStatus) ??
+                'Planning'
+              }
+              rating={entry.entry?.rating ?? null}
+              note={entry.entry?.note ?? null}
+              entryDateLabel="Added"
+              entryDateIso={entry.createdAt}
+              onChangeStatus={async (next) => {
+                if (!user?.email) return
+                setItems((prev) =>
+                  prev.map((row) => {
+                    const media = Array.isArray(row.media_items)
+                      ? row.media_items[0]
+                      : row.media_items
+                    if (!media) return row
+                    if (media.id !== entry.media.id) return row
+                    return {
+                      ...row,
+                      entry: {
+                        status: next,
+                        rating: row.entry?.rating ?? null,
+                        note: row.entry?.note ?? null,
+                        updatedAt:
+                          row.entry?.updatedAt ?? new Date().toISOString(),
+                      },
+                    }
+                  }),
+                )
+                await fetch('/api/list', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: user.email,
+                    media: {
+                      provider: entry.media.source,
+                      providerId: entry.media.source_id,
+                      type: entry.media.type,
+                      title: entry.media.title,
+                      posterUrl: entry.media.poster_url ?? undefined,
+                      description: entry.media.description ?? undefined,
+                    },
+                    entry: { status: next },
+                  }),
+                })
+              }}
+              onChangeRating={async (next) => {
+                if (!user?.email) return
+                setItems((prev) =>
+                  prev.map((row) => {
+                    const media = Array.isArray(row.media_items)
+                      ? row.media_items[0]
+                      : row.media_items
+                    if (!media) return row
+                    if (media.id !== entry.media.id) return row
+                    return {
+                      ...row,
+                      entry: {
+                        status: row.entry?.status ?? 'Planning',
+                        rating: next,
+                        note: row.entry?.note ?? null,
+                        updatedAt:
+                          row.entry?.updatedAt ?? new Date().toISOString(),
+                      },
+                    }
+                  }),
+                )
+                await fetch('/api/list', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: user.email,
+                    media: {
+                      provider: entry.media.source,
+                      providerId: entry.media.source_id,
+                      type: entry.media.type,
+                      title: entry.media.title,
+                      posterUrl: entry.media.poster_url ?? undefined,
+                      description: entry.media.description ?? undefined,
+                    },
+                    entry: { rating: next },
+                  }),
+                })
+              }}
+              onSaveNote={async (next) => {
+                if (!user?.email) return
+                setItems((prev) =>
+                  prev.map((row) => {
+                    const media = Array.isArray(row.media_items)
+                      ? row.media_items[0]
+                      : row.media_items
+                    if (!media) return row
+                    if (media.id !== entry.media.id) return row
+                    return {
+                      ...row,
+                      entry: {
+                        status: row.entry?.status ?? 'Planning',
+                        rating: row.entry?.rating ?? null,
+                        note: next,
+                        updatedAt:
+                          row.entry?.updatedAt ?? new Date().toISOString(),
+                      },
+                    }
+                  }),
+                )
+                await fetch('/api/list', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: user.email,
+                    media: {
+                      provider: entry.media.source,
+                      providerId: entry.media.source_id,
+                      type: entry.media.type,
+                      title: entry.media.title,
+                      posterUrl: entry.media.poster_url ?? undefined,
+                      description: entry.media.description ?? undefined,
+                    },
+                    entry: { note: next },
+                  }),
+                })
+              }}
+            />
           ))}
         </div>
       )
@@ -284,49 +503,138 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
     return (
       <div className="space-y-4">
         {processedItems.map((entry) => (
-          <article
+          <MediaListItem
             key={`${entry.createdAt}-${entry.media.id}`}
-            className="flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/95 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg md:flex-row"
-          >
-            <Link
-              href={`/media/${entry.routeId}`}
-              className="relative h-32 w-24 flex-shrink-0 overflow-hidden rounded-2xl bg-muted md:h-44 md:w-32"
-            >
-              {entry.media.poster_url ? (
-                <Image
-                  src={entry.media.poster_url}
-                  alt={entry.media.title}
-                  fill
-                  sizes="128px"
-                  className="object-cover"
-                />
-              ) : null}
-            </Link>
-
-            <div className="flex flex-1 flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Link
-                  href={`/media/${entry.routeId}`}
-                  className="text-lg font-semibold hover:underline"
-                >
-                  {entry.media.title}
-                </Link>
-                <Badge variant="secondary" className="capitalize">
-                  {entry.media.type}
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Added {formatAddedAt(entry.createdAt)}
-              </p>
-              {entry.media.description ? (
-                <p className="text-sm text-muted-foreground">
-                  {entry.media.description}
-                </p>
-              ) : (
-                <p className="text-sm text-muted-foreground">—</p>
-              )}
-            </div>
-          </article>
+            viewMode="detailed"
+            href={`/media/${entry.routeId}`}
+            title={entry.media.title}
+            type={entry.media.type}
+            posterUrl={entry.media.poster_url}
+            synopsis={entry.media.description}
+            year={undefined}
+            status={
+              (entry.entry?.status as import('@/types').EntryStatus) ??
+              'Planning'
+            }
+            rating={entry.entry?.rating ?? null}
+            note={entry.entry?.note ?? null}
+            entryDateLabel="Added"
+            entryDateIso={entry.createdAt}
+            onChangeStatus={async (next) => {
+              if (!user?.email) return
+              setItems((prev) =>
+                prev.map((row) => {
+                  const media = Array.isArray(row.media_items)
+                    ? row.media_items[0]
+                    : row.media_items
+                  if (!media) return row
+                  if (media.id !== entry.media.id) return row
+                  return {
+                    ...row,
+                    entry: {
+                      status: next,
+                      rating: row.entry?.rating ?? null,
+                      note: row.entry?.note ?? null,
+                      updatedAt:
+                        row.entry?.updatedAt ?? new Date().toISOString(),
+                    },
+                  }
+                }),
+              )
+              await fetch('/api/list', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: user.email,
+                  media: {
+                    provider: entry.media.source,
+                    providerId: entry.media.source_id,
+                    type: entry.media.type,
+                    title: entry.media.title,
+                    posterUrl: entry.media.poster_url ?? undefined,
+                    description: entry.media.description ?? undefined,
+                  },
+                  entry: { status: next },
+                }),
+              })
+            }}
+            onChangeRating={async (next) => {
+              if (!user?.email) return
+              setItems((prev) =>
+                prev.map((row) => {
+                  const media = Array.isArray(row.media_items)
+                    ? row.media_items[0]
+                    : row.media_items
+                  if (!media) return row
+                  if (media.id !== entry.media.id) return row
+                  return {
+                    ...row,
+                    entry: {
+                      status: row.entry?.status ?? 'Planning',
+                      rating: next,
+                      note: row.entry?.note ?? null,
+                      updatedAt:
+                        row.entry?.updatedAt ?? new Date().toISOString(),
+                    },
+                  }
+                }),
+              )
+              await fetch('/api/list', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: user.email,
+                  media: {
+                    provider: entry.media.source,
+                    providerId: entry.media.source_id,
+                    type: entry.media.type,
+                    title: entry.media.title,
+                    posterUrl: entry.media.poster_url ?? undefined,
+                    description: entry.media.description ?? undefined,
+                  },
+                  entry: { rating: next },
+                }),
+              })
+            }}
+            onSaveNote={async (next) => {
+              if (!user?.email) return
+              setItems((prev) =>
+                prev.map((row) => {
+                  const media = Array.isArray(row.media_items)
+                    ? row.media_items[0]
+                    : row.media_items
+                  if (!media) return row
+                  if (media.id !== entry.media.id) return row
+                  return {
+                    ...row,
+                    entry: {
+                      status: row.entry?.status ?? 'Planning',
+                      rating: row.entry?.rating ?? null,
+                      note: next,
+                      updatedAt:
+                        row.entry?.updatedAt ?? new Date().toISOString(),
+                    },
+                  }
+                }),
+              )
+              await fetch('/api/list', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: user.email,
+                  media: {
+                    provider: entry.media.source,
+                    providerId: entry.media.source_id,
+                    type: entry.media.type,
+                    title: entry.media.title,
+                    posterUrl: entry.media.poster_url ?? undefined,
+                    description: entry.media.description ?? undefined,
+                  },
+                  entry: { note: next },
+                }),
+              })
+            }}
+          />
         ))}
       </div>
     )
