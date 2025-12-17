@@ -14,6 +14,9 @@ interface MediaPayload {
   year?: number
   durationMinutes?: number
   genres?: string[]
+  directors?: string[]
+  writers?: string[]
+  cast?: string[]
 }
 
 function isValidBody(
@@ -130,7 +133,7 @@ async function findMediaRow(
 ) {
   const { data } = await supabase
     .from('media_items')
-    .select('id,year,duration_minutes,genres,metadata')
+    .select('id,year,duration_minutes,genres,directors,writers,cast,metadata')
     .eq('source', provider)
     .eq('source_id', sourceId)
     .maybeSingle()
@@ -166,6 +169,9 @@ async function ensureMediaRow(
       year: resolvedMeta.year,
       duration_minutes: resolvedMeta.durationMinutes,
       genres: resolvedMeta.genres,
+      directors: resolvedMeta.directors,
+      writers: resolvedMeta.writers,
+      cast: resolvedMeta.cast,
       metadata: resolvedMeta.metadata,
     })
     .select('id')
@@ -180,6 +186,9 @@ type MediaRow = {
   year: number | null
   duration_minutes: number | null
   genres: string[] | null
+  directors: string[] | null
+  writers: string[] | null
+  cast: string[] | null
   metadata: unknown | null
 }
 
@@ -187,6 +196,9 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
   year: number | null
   durationMinutes: number | null
   genres: string[] | null
+  directors: string[] | null
+  writers: string[] | null
+  cast: string[] | null
   metadata: Record<string, unknown> | null
 }> {
   const base = {
@@ -198,6 +210,18 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
       Array.isArray(media.genres) && media.genres.length > 0
         ? media.genres.filter(Boolean)
         : null,
+    directors:
+      Array.isArray(media.directors) && media.directors.length > 0
+        ? media.directors.filter(Boolean)
+        : null,
+    writers:
+      Array.isArray(media.writers) && media.writers.length > 0
+        ? media.writers.filter(Boolean)
+        : null,
+    cast:
+      Array.isArray(media.cast) && media.cast.length > 0
+        ? media.cast.filter(Boolean)
+        : null,
   }
 
   if (media.provider !== 'tmdb') {
@@ -208,7 +232,12 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
   if (!isSupportedType) return { ...base, metadata: null }
 
   const needsFetch =
-    base.year == null || base.durationMinutes == null || base.genres == null
+    base.year == null ||
+    base.durationMinutes == null ||
+    base.genres == null ||
+    base.directors == null ||
+    base.writers == null ||
+    base.cast == null
   if (!needsFetch) {
     return {
       ...base,
@@ -218,6 +247,9 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
         year: base.year,
         durationMinutes: base.durationMinutes,
         genres: base.genres,
+        directors: base.directors,
+        writers: base.writers,
+        cast: base.cast,
       },
     }
   }
@@ -230,6 +262,7 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
       `${TMDB_API_BASE}/${media.type}/${encodeURIComponent(media.providerId)}`,
     )
     url.searchParams.set('language', 'en-US')
+    url.searchParams.set('append_to_response', 'credits')
     url.searchParams.set('api_key', apiKey)
     const res = await fetch(url, { next: { revalidate: 0 } })
     if (!res.ok) return { ...base, metadata: null }
@@ -239,6 +272,10 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
       runtime?: number
       episode_run_time?: number[]
       genres?: Array<{ name?: string }>
+      credits?: {
+        cast?: Array<{ name?: string }>
+        crew?: Array<{ job?: string; name?: string }>
+      }
     }
 
     const year = base.year
@@ -261,6 +298,32 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
       base.genres ??
       ((data.genres ?? []).map((g) => g.name).filter(Boolean) as string[])
 
+    const crew = data.credits?.crew ?? []
+    const directors =
+      base.directors ??
+      (crew
+        .filter((member) => member.job?.toLowerCase() === 'director')
+        .map((member) => member.name)
+        .filter(Boolean) as string[])
+
+    const writerJobs = new Set(['writer', 'screenplay', 'story', 'author'])
+    const writers =
+      base.writers ??
+      (crew
+        .filter((member) => {
+          const job = member.job?.toLowerCase()
+          return job ? writerJobs.has(job) : false
+        })
+        .map((member) => member.name)
+        .filter(Boolean) as string[])
+
+    const cast =
+      base.cast ??
+      ((data.credits?.cast ?? [])
+        .slice(0, 10)
+        .map((member) => member.name)
+        .filter(Boolean) as string[])
+
     return {
       year: Number.isFinite(year) ? (year as number) : null,
       durationMinutes:
@@ -268,12 +331,18 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
           ? (durationMinutes as number)
           : null,
       genres: genres.length > 0 ? genres : null,
+      directors: directors.length > 0 ? directors : null,
+      writers: writers.length > 0 ? writers : null,
+      cast: cast.length > 0 ? cast : null,
       metadata: {
         provider: media.provider,
         providerId: media.providerId,
         year,
         durationMinutes,
         genres,
+        directors,
+        writers,
+        cast,
       },
     }
   } catch {
@@ -299,6 +368,26 @@ async function patchMediaRowIfMissing(
     resolved.genres != null
   ) {
     update.genres = resolved.genres
+  }
+  if (
+    (row.directors == null ||
+      (Array.isArray(row.directors) && row.directors.length === 0)) &&
+    resolved.directors != null
+  ) {
+    update.directors = resolved.directors
+  }
+  if (
+    (row.writers == null ||
+      (Array.isArray(row.writers) && row.writers.length === 0)) &&
+    resolved.writers != null
+  ) {
+    update.writers = resolved.writers
+  }
+  if (
+    (row.cast == null || (Array.isArray(row.cast) && row.cast.length === 0)) &&
+    resolved.cast != null
+  ) {
+    update.cast = resolved.cast
   }
   if (row.metadata == null && resolved.metadata != null) {
     update.metadata = resolved.metadata

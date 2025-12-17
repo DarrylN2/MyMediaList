@@ -18,6 +18,9 @@ type RatedEntry = {
     year: number | null
     durationMinutes: number | null
     genres: string[] | null
+    directors: string[] | null
+    writers: string[] | null
+    cast: string[] | null
   }
 }
 
@@ -50,7 +53,10 @@ export async function GET(request: NextRequest) {
             source_id,
             year,
             duration_minutes,
-            genres
+            genres,
+            directors,
+            writers,
+            cast
           )
         `,
       )
@@ -85,6 +91,9 @@ export async function GET(request: NextRequest) {
             year: (media.year as number | null) ?? null,
             durationMinutes: (media.duration_minutes as number | null) ?? null,
             genres: (media.genres as string[] | null) ?? null,
+            directors: (media.directors as string[] | null) ?? null,
+            writers: (media.writers as string[] | null) ?? null,
+            cast: (media.cast as string[] | null) ?? null,
           },
         }
       })

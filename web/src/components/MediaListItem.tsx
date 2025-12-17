@@ -39,6 +39,9 @@ export interface MediaListItemProps {
   year?: number
   runtimeMinutes?: number
   genres?: string[] | null
+  directors?: string[] | null
+  writers?: string[] | null
+  cast?: string[] | null
 
   status?: EntryStatus
   rating?: number | null
@@ -89,6 +92,9 @@ export function MediaListItem({
   year,
   runtimeMinutes,
   genres,
+  directors,
+  writers,
+  cast,
   status,
   rating,
   note,
@@ -274,6 +280,22 @@ export function MediaListItem({
   if (runtimeMinutes != null)
     metaSuffixParts.push(formatDuration(runtimeMinutes))
   const metaSuffix = metaSuffixParts.join(' • ')
+
+  const renderPeopleLine = (label: string, people?: string[] | null) => {
+    const cleaned = (people ?? []).filter(Boolean).map(String)
+    if (cleaned.length === 0) return null
+    const shown = cleaned.slice(0, 3)
+    const remaining = Math.max(0, cleaned.length - shown.length)
+    return (
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="text-xs font-semibold text-foreground">{label}:</span>
+        <span className="text-xs text-muted-foreground">
+          {shown.join(', ')}
+          {remaining > 0 ? ` +${remaining}` : ''}
+        </span>
+      </div>
+    )
+  }
 
   if (viewMode === 'compact') {
     return (
@@ -525,7 +547,7 @@ export function MediaListItem({
         </div>
       </div>
 
-      <div className="min-w-0 flex-1 space-y-3">
+      <div className="min-w-0 flex-1 space-y-3 md:flex md:flex-col md:space-y-0 md:gap-3">
         <div className="flex flex-wrap items-start gap-2">
           <Link
             href={href}
@@ -535,9 +557,15 @@ export function MediaListItem({
           </Link>
         </div>
 
-        <p className="line-clamp-4 text-sm text-muted-foreground">
+        <p className="line-clamp-5 text-base text-muted-foreground">
           {synopsis ?? '—'}
         </p>
+
+        <div className="space-y-1 md:mt-auto">
+          {renderPeopleLine('Directors', directors)}
+          {renderPeopleLine('Writers', writers)}
+          {renderPeopleLine('Actors', cast)}
+        </div>
       </div>
 
       <div className="flex w-full flex-col gap-4 md:w-[360px] md:flex-shrink-0">

@@ -37,6 +37,9 @@ type ListItem = {
         year: number | null
         duration_minutes: number | null
         genres: string[] | null
+        directors: string[] | null
+        writers: string[] | null
+        cast: string[] | null
         metadata: unknown | null
       }
     | Array<{
@@ -50,6 +53,9 @@ type ListItem = {
         year: number | null
         duration_minutes: number | null
         genres: string[] | null
+        directors: string[] | null
+        writers: string[] | null
+        cast: string[] | null
         metadata: unknown | null
       }>
   entry?: {
@@ -219,6 +225,9 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                 year={entry.media.year ?? undefined}
                 runtimeMinutes={entry.media.duration_minutes ?? undefined}
                 genres={entry.media.genres ?? undefined}
+                directors={entry.media.directors ?? undefined}
+                writers={entry.media.writers ?? undefined}
+                cast={entry.media.cast ?? undefined}
                 status={
                   (entry.entry?.status as import('@/types').EntryStatus) ??
                   'Planning'
@@ -369,6 +378,9 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
               year={entry.media.year ?? undefined}
               runtimeMinutes={entry.media.duration_minutes ?? undefined}
               genres={entry.media.genres ?? undefined}
+              directors={entry.media.directors ?? undefined}
+              writers={entry.media.writers ?? undefined}
+              cast={entry.media.cast ?? undefined}
               status={
                 (entry.entry?.status as import('@/types').EntryStatus) ??
                 'Planning'
@@ -518,6 +530,9 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
             year={entry.media.year ?? undefined}
             runtimeMinutes={entry.media.duration_minutes ?? undefined}
             genres={entry.media.genres ?? undefined}
+            directors={entry.media.directors ?? undefined}
+            writers={entry.media.writers ?? undefined}
+            cast={entry.media.cast ?? undefined}
             status={
               (entry.entry?.status as import('@/types').EntryStatus) ??
               'Planning'

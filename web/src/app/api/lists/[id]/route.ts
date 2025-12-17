@@ -44,6 +44,9 @@ export async function GET(
             year,
             duration_minutes,
             genres,
+            directors,
+            writers,
+            cast,
             metadata
           )
         `,

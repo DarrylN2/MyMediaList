@@ -57,6 +57,9 @@ type RatedItem = {
   year: number | null
   durationMinutes: number | null
   genres: string[] | null
+  directors: string[] | null
+  writers: string[] | null
+  cast: string[] | null
   provider: string
   providerId: string
 }
@@ -321,6 +324,9 @@ export default function ListsPage() {
               year: number | null
               durationMinutes: number | null
               genres: string[] | null
+              directors: string[] | null
+              writers: string[] | null
+              cast: string[] | null
             }
           }>
         }
@@ -340,6 +346,9 @@ export default function ListsPage() {
               year: item.media.year ?? null,
               durationMinutes: item.media.durationMinutes ?? null,
               genres: item.media.genres ?? null,
+              directors: item.media.directors ?? null,
+              writers: item.media.writers ?? null,
+              cast: item.media.cast ?? null,
               provider: item.media.provider,
               providerId: item.media.providerId,
             })),
@@ -944,6 +953,9 @@ export default function ListsPage() {
                       year={item.year ?? undefined}
                       runtimeMinutes={item.durationMinutes ?? undefined}
                       genres={item.genres ?? undefined}
+                      directors={item.directors ?? undefined}
+                      writers={item.writers ?? undefined}
+                      cast={item.cast ?? undefined}
                       status={item.status}
                       rating={item.rating}
                       note={item.note}
@@ -1101,6 +1113,9 @@ export default function ListsPage() {
                     year={item.year ?? undefined}
                     runtimeMinutes={item.durationMinutes ?? undefined}
                     genres={item.genres ?? undefined}
+                    directors={item.directors ?? undefined}
+                    writers={item.writers ?? undefined}
+                    cast={item.cast ?? undefined}
                     status={item.status}
                     rating={item.rating}
                     note={item.note}

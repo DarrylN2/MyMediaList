@@ -13,6 +13,9 @@ create table if not exists media_items (
   year integer,
   duration_minutes integer,
   genres text[],
+  directors text[],
+  writers text[],
+  cast text[],
   created_at timestamptz not null default now(),
   unique (source, source_id)
 );
@@ -21,7 +24,10 @@ create table if not exists media_items (
 alter table if exists media_items
   add column if not exists year integer,
   add column if not exists duration_minutes integer,
-  add column if not exists genres text[];
+  add column if not exists genres text[],
+  add column if not exists directors text[],
+  add column if not exists writers text[],
+  add column if not exists cast text[];
 
 create table if not exists user_media (
   id uuid primary key default gen_random_uuid(),
