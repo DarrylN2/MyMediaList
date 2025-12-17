@@ -409,7 +409,7 @@ export function MediaListItem({
     return (
       <article className="overflow-hidden rounded-3xl border border-white/70 bg-white/95 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
         <Link href={href} className="block">
-          <div className="relative aspect-[2/3] w-full bg-muted">
+          <div className="relative aspect-[4/5] w-full bg-muted">
             {posterUrl ? (
               <Image
                 src={posterUrl}

@@ -953,9 +953,6 @@ export default function ListsPage() {
                       year={item.year ?? undefined}
                       runtimeMinutes={item.durationMinutes ?? undefined}
                       genres={item.genres ?? undefined}
-                      directors={item.directors ?? undefined}
-                      writers={item.writers ?? undefined}
-                      cast={item.cast ?? undefined}
                       status={item.status}
                       rating={item.rating}
                       note={item.note}
@@ -1015,7 +1012,7 @@ export default function ListsPage() {
               </div>
             </div>
           ) : ratedViewMode === 'grid' ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
               {visibleRatedItems.map((item) => {
                 const href = `/media/${buildMediaRouteId({
                   provider: item.provider,
@@ -1113,9 +1110,6 @@ export default function ListsPage() {
                     year={item.year ?? undefined}
                     runtimeMinutes={item.durationMinutes ?? undefined}
                     genres={item.genres ?? undefined}
-                    directors={item.directors ?? undefined}
-                    writers={item.writers ?? undefined}
-                    cast={item.cast ?? undefined}
                     status={item.status}
                     rating={item.rating}
                     note={item.note}
