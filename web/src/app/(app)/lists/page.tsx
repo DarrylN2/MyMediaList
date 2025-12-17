@@ -4,7 +4,14 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowUpDown, Plus, Search } from 'lucide-react'
+import {
+  ArrowUpDown,
+  LayoutGrid,
+  List,
+  Plus,
+  Search,
+  Table as TableIcon,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -893,15 +900,31 @@ export default function ListsPage() {
                 <Button
                   key={mode}
                   type="button"
-                  size="sm"
+                  size="icon"
                   variant={ratedViewMode === mode ? 'default' : 'outline'}
                   onClick={() => setRatedViewMode(mode)}
+                  aria-label={
+                    mode === 'detailed'
+                      ? 'List view'
+                      : mode === 'grid'
+                        ? 'Grid view'
+                        : 'Table view'
+                  }
+                  title={
+                    mode === 'detailed'
+                      ? 'List'
+                      : mode === 'grid'
+                        ? 'Grid'
+                        : 'Table'
+                  }
                 >
-                  {mode === 'detailed'
-                    ? 'List'
-                    : mode === 'grid'
-                      ? 'Grid'
-                      : 'Table'}
+                  {mode === 'detailed' ? (
+                    <List className="h-4 w-4" />
+                  ) : mode === 'grid' ? (
+                    <LayoutGrid className="h-4 w-4" />
+                  ) : (
+                    <TableIcon className="h-4 w-4" />
+                  )}
                 </Button>
               ))}
             </div>

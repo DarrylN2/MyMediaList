@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { LayoutGrid, List, Table as TableIcon } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -755,11 +756,31 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                 <Button
                   key={mode}
                   type="button"
-                  size="sm"
+                  size="icon"
                   variant={viewMode === mode ? 'default' : 'outline'}
                   onClick={() => setViewMode(mode)}
+                  aria-label={
+                    mode === 'detailed'
+                      ? 'Detailed view'
+                      : mode === 'grid'
+                        ? 'Grid view'
+                        : 'Compact view'
+                  }
+                  title={
+                    mode === 'detailed'
+                      ? 'Detailed'
+                      : mode === 'grid'
+                        ? 'Grid'
+                        : 'Compact'
+                  }
                 >
-                  {mode}
+                  {mode === 'detailed' ? (
+                    <List className="h-4 w-4" />
+                  ) : mode === 'grid' ? (
+                    <LayoutGrid className="h-4 w-4" />
+                  ) : (
+                    <TableIcon className="h-4 w-4" />
+                  )}
                 </Button>
               ))}
             </div>

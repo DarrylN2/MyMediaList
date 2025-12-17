@@ -3,7 +3,14 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { ArrowUpDown, SlidersHorizontal, X } from 'lucide-react'
+import {
+  ArrowUpDown,
+  LayoutGrid,
+  List,
+  SlidersHorizontal,
+  Table as TableIcon,
+  X,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -766,11 +773,19 @@ export function ListDetailClient({ list }: { list: MediaList }) {
                 <Button
                   key={mode.value}
                   type="button"
-                  size="sm"
+                  size="icon"
                   variant={viewMode === mode.value ? 'default' : 'outline'}
                   onClick={() => setViewMode(mode.value)}
+                  aria-label={`${mode.label} view`}
+                  title={mode.label}
                 >
-                  {mode.label}
+                  {mode.value === 'detailed' ? (
+                    <List className="h-4 w-4" />
+                  ) : mode.value === 'grid' ? (
+                    <LayoutGrid className="h-4 w-4" />
+                  ) : (
+                    <TableIcon className="h-4 w-4" />
+                  )}
                 </Button>
               ))}
             </div>
