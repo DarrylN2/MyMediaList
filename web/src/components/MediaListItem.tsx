@@ -8,6 +8,13 @@ import { Calendar, MessageSquareText, Pencil, Star } from 'lucide-react'
 import type { EntryStatus, MediaType } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Tooltip,
@@ -108,7 +115,6 @@ export function MediaListItem({
   const [editingStatus, setEditingStatus] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [noteDraft, setNoteDraft] = useState(note ?? '')
-  const [compactRatingOpen, setCompactRatingOpen] = useState(false)
 
   const openNoteEditor = () => {
     setNoteDraft(note ?? '')
@@ -199,6 +205,7 @@ export function MediaListItem({
                   type="button"
                   size="sm"
                   variant="outline"
+                  className="text-foreground"
                   onClick={() => setNoteOpen(true)}
                 >
                   {note?.trim() ? 'Edit' : 'Add note'}
@@ -275,6 +282,18 @@ export function MediaListItem({
     genreParts.length - visibleGenres.length,
   )
 
+  const detailedGenres = genreParts.slice(0, 2)
+  const detailedRemainingGenreCount = Math.max(
+    0,
+    genreParts.length - detailedGenres.length,
+  )
+
+  const compactGenres = genreParts.slice(0, 2)
+  const compactRemainingGenreCount = Math.max(
+    0,
+    genreParts.length - compactGenres.length,
+  )
+
   const metaSuffixParts: string[] = []
   if (year != null) metaSuffixParts.push(String(year))
   if (runtimeMinutes != null)
@@ -298,55 +317,26 @@ export function MediaListItem({
   }
 
   if (viewMode === 'compact') {
+    const ratingValue =
+      rating != null && rating > 0 ? String(rating) : String(0)
+
     return (
-      <div className="grid grid-cols-[64px_1fr_120px_130px_120px_44px] items-center gap-3 py-3">
-        <div className="flex flex-col items-start gap-1">
+      <div className="grid grid-cols-[96px_260px_1fr_80px_100px_120px_160px_120px] items-start gap-3 px-2 py-3">
+        <div className="flex flex-col items-start">
           <Link
             href={href}
-            className="relative h-12 w-12 overflow-hidden rounded-xl bg-muted"
+            className="relative w-16 overflow-hidden bg-muted aspect-[2/3]"
           >
             {posterUrl ? (
               <Image
                 src={posterUrl}
                 alt={`${title} cover`}
                 fill
-                sizes="48px"
+                sizes="64px"
                 className="object-cover"
               />
             ) : null}
           </Link>
-
-          <div className="flex w-full flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                {typeLabel}
-              </span>
-              {metaSuffix ? (
-                <span className="text-[10px] text-muted-foreground">
-                  • {metaSuffix}
-                </span>
-              ) : null}
-            </div>
-
-            {visibleGenres.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-1">
-                {visibleGenres.map((g) => (
-                  <Badge
-                    key={`compact-genre-${href}-${g}`}
-                    variant="outline"
-                    className="px-1 py-0 text-[10px]"
-                  >
-                    {g}
-                  </Badge>
-                ))}
-                {remainingGenreCount > 0 ? (
-                  <Badge variant="secondary" className="px-1 py-0 text-[10px]">
-                    +{remainingGenreCount}
-                  </Badge>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
         </div>
 
         <div className="min-w-0">
@@ -356,51 +346,90 @@ export function MediaListItem({
           >
             <span className="line-clamp-1">{title}</span>
           </Link>
+
+          <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+              {typeLabel}
+            </span>
+          </div>
+
+          {compactGenres.length > 0 ? (
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {compactGenres.map((g) => (
+                <Badge
+                  key={`compact-genre-${href}-${g}`}
+                  variant="outline"
+                  className="px-1 py-0 text-[10px]"
+                >
+                  {g}
+                </Badge>
+              ))}
+              {compactRemainingGenreCount > 0 ? (
+                <Badge variant="secondary" className="px-1 py-0 text-[10px]">
+                  +{compactRemainingGenreCount}
+                </Badge>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="min-w-0">
+          <p className="line-clamp-2 text-sm text-muted-foreground">
+            {synopsis ?? '—'}
+          </p>
+        </div>
+
+        <div className="text-sm text-muted-foreground">{year ?? '—'}</div>
+
+        <div className="text-sm text-muted-foreground">
+          {runtimeMinutes != null ? formatDuration(runtimeMinutes) : '—'}
         </div>
 
         <div>{statusNode}</div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setCompactRatingOpen((v) => !v)}
-            disabled={busy || !onChangeRating}
-            className="flex items-center gap-1 text-sm"
-            aria-label="Edit rating"
-          >
-            <Star className="h-4 w-4 text-yellow-500" />
-            <span className="font-semibold text-foreground">
-              {(rating ?? '—') as string | number}/10
-            </span>
-          </button>
-
-          {compactRatingOpen && onChangeRating ? (
-            <select
-              className="h-8 rounded-md border bg-white px-2 text-sm"
-              value={rating ?? 0}
-              onChange={async (e) => {
-                const next = Number(e.target.value)
+          {onChangeRating ? (
+            <Select
+              value={ratingValue}
+              onValueChange={async (nextValue) => {
+                const next = Number(nextValue)
                 if (!Number.isFinite(next) || next < 1 || next > 10) return
                 await onChangeRating(next)
-                setCompactRatingOpen(false)
               }}
-              aria-label="Select rating"
             >
-              <option value={0} disabled>
-                —
-              </option>
-              {Array.from({ length: 10 }).map((_, i) => (
-                <option key={i + 1} value={i + 1}>
-                  {i + 1}/10
-                </option>
-              ))}
-            </select>
-          ) : null}
+              <SelectTrigger
+                size="sm"
+                className="h-auto border-0 bg-transparent p-0 shadow-none hover:bg-transparent focus-visible:ring-0"
+                aria-label="Edit rating"
+              >
+                <SelectValue>
+                  <Star className="h-4 w-4 text-yellow-500" />
+                  <span className="font-semibold text-foreground">
+                    {(rating ?? '—') as string | number}/10
+                  </span>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <SelectItem key={i + 1} value={String(i + 1)}>
+                    {i + 1}/10
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-1 text-sm">
+              <Star className="h-4 w-4 text-yellow-500" />
+              <span className="font-semibold text-foreground">
+                {(rating ?? '—') as string | number}/10
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-center">{noteButton}</div>
         </div>
 
         <div>{entryDate}</div>
-
-        <div className="flex justify-end">{noteButton}</div>
       </div>
     )
   }
@@ -409,7 +438,7 @@ export function MediaListItem({
     return (
       <article className="overflow-hidden rounded-3xl border border-white/70 bg-white/95 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
         <Link href={href} className="block">
-          <div className="relative aspect-[4/5] w-full bg-muted">
+          <div className="relative aspect-[3/4] w-full bg-muted">
             {posterUrl ? (
               <Image
                 src={posterUrl}
@@ -468,11 +497,6 @@ export function MediaListItem({
             {synopsis ?? '—'}
           </p>
 
-          <div className="flex items-center justify-between gap-2">
-            <div>{statusNode}</div>
-            <div className="text-right">{entryDate}</div>
-          </div>
-
           {onChangeRating ? (
             <RatingStars
               rating={rating ?? 0}
@@ -483,6 +507,11 @@ export function MediaListItem({
           ) : (
             <RatingStars rating={rating ?? 0} size="sm" />
           )}
+
+          <div className="flex items-center justify-between gap-2">
+            <div>{statusNode}</div>
+            <div className="text-right">{entryDate}</div>
+          </div>
         </div>
       </article>
     )
@@ -525,25 +554,6 @@ export function MediaListItem({
               </span>
             ) : null}
           </div>
-
-          {visibleGenres.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-1">
-              {visibleGenres.map((g) => (
-                <Badge
-                  key={`detailed-genre-${href}-${g}`}
-                  variant="outline"
-                  className="text-[10px]"
-                >
-                  {g}
-                </Badge>
-              ))}
-              {remainingGenreCount > 0 ? (
-                <Badge variant="secondary" className="text-[10px]">
-                  +{remainingGenreCount}
-                </Badge>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       </div>
 
@@ -556,6 +566,25 @@ export function MediaListItem({
             <span className="line-clamp-2">{title}</span>
           </Link>
         </div>
+
+        {detailedGenres.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1">
+            {detailedGenres.map((g) => (
+              <Badge
+                key={`detailed-genre-${href}-${g}`}
+                variant="outline"
+                className="text-xs"
+              >
+                {g}
+              </Badge>
+            ))}
+            {detailedRemainingGenreCount > 0 ? (
+              <Badge variant="secondary" className="text-xs">
+                +{detailedRemainingGenreCount}
+              </Badge>
+            ) : null}
+          </div>
+        ) : null}
 
         <p className="line-clamp-5 text-base text-muted-foreground">
           {synopsis ?? '—'}
