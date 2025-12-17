@@ -953,6 +953,9 @@ export default function ListsPage() {
                       year={item.year ?? undefined}
                       runtimeMinutes={item.durationMinutes ?? undefined}
                       genres={item.genres ?? undefined}
+                      directors={item.directors ?? undefined}
+                      writers={item.writers ?? undefined}
+                      cast={item.cast ?? undefined}
                       status={item.status}
                       rating={item.rating}
                       note={item.note}
@@ -1032,6 +1035,9 @@ export default function ListsPage() {
                     year={item.year ?? undefined}
                     runtimeMinutes={item.durationMinutes ?? undefined}
                     genres={item.genres ?? undefined}
+                    directors={item.directors ?? undefined}
+                    writers={item.writers ?? undefined}
+                    cast={item.cast ?? undefined}
                     status={item.status}
                     rating={item.rating}
                     note={item.note}
@@ -1110,6 +1116,9 @@ export default function ListsPage() {
                     year={item.year ?? undefined}
                     runtimeMinutes={item.durationMinutes ?? undefined}
                     genres={item.genres ?? undefined}
+                    directors={item.directors ?? undefined}
+                    writers={item.writers ?? undefined}
+                    cast={item.cast ?? undefined}
                     status={item.status}
                     rating={item.rating}
                     note={item.note}
