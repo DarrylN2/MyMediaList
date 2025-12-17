@@ -3,6 +3,7 @@ import type { Media } from '@/types'
 
 const TMDB_API_BASE = 'https://api.themoviedb.org/3'
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500'
+const ANILIST_API_BASE = 'https://graphql.anilist.co'
 const DETAIL_ENDPOINTS = {
   movie: 'movie',
   tv: 'tv',
@@ -16,6 +17,41 @@ export async function GET(
 ) {
   const { provider, id } = await params
 
+  const typeParam = (
+    request.nextUrl.searchParams.get('type') ?? 'movie'
+  ).toLowerCase()
+
+  if (provider === 'anilist') {
+    if (typeParam !== 'anime') {
+      return NextResponse.json(
+        { error: `Unsupported media type '${typeParam}'.` },
+        { status: 400 },
+      )
+    }
+
+    const numericId = Number(id)
+    if (!Number.isFinite(numericId)) {
+      return NextResponse.json(
+        { error: 'Invalid AniList id.' },
+        { status: 400 },
+      )
+    }
+
+    try {
+      const media = await fetchAniListAnimeDetail(numericId)
+      if (!media) {
+        return NextResponse.json({ error: 'Media not found.' }, { status: 404 })
+      }
+      return NextResponse.json({ media })
+    } catch (error) {
+      console.error('AniList media detail error', error)
+      return NextResponse.json(
+        { error: 'Unexpected error while contacting AniList.' },
+        { status: 500 },
+      )
+    }
+  }
+
   if (provider !== 'tmdb') {
     return NextResponse.json(
       { error: `Unsupported provider '${provider}'` },
@@ -23,9 +59,6 @@ export async function GET(
     )
   }
 
-  const typeParam = (
-    request.nextUrl.searchParams.get('type') ?? 'movie'
-  ).toLowerCase()
   const type = SUPPORTED_TYPES.has(typeParam as DetailType)
     ? (typeParam as DetailType)
     : null
@@ -81,6 +114,114 @@ export async function GET(
       { error: 'Unexpected error while contacting TMDB.' },
       { status: 500 },
     )
+  }
+}
+
+interface AniListDetailResponse {
+  data?: {
+    Media?: AniListAnimeDetail | null
+  }
+  errors?: Array<{ message?: string }>
+}
+
+interface AniListAnimeDetail {
+  id: number
+  type?: string | null
+  isAdult?: boolean | null
+  title?: {
+    romaji?: string
+    english?: string
+    native?: string
+  }
+  description?: string | null
+  seasonYear?: number | null
+  startDate?: { year?: number | null }
+  duration?: number | null
+  genres?: string[] | null
+  coverImage?: { large?: string | null }
+  studios?: { nodes?: Array<{ name?: string | null } | null> | null }
+}
+
+async function fetchAniListAnimeDetail(
+  anilistId: number,
+): Promise<Media | null> {
+  const gqlQuery = `
+    query ($id: Int) {
+      Media(id: $id, type: ANIME) {
+        id
+        type
+        isAdult
+        title { romaji english native }
+        description(asHtml: false)
+        seasonYear
+        startDate { year }
+        duration
+        genres
+        coverImage { large }
+        studios(isMain: true) { nodes { name } }
+      }
+    }
+  `
+
+  const response = await fetch(ANILIST_API_BASE, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({ query: gqlQuery, variables: { id: anilistId } }),
+    next: { revalidate: 0 },
+  })
+
+  const payload = (await response
+    .json()
+    .catch(() => null)) as AniListDetailResponse | null
+
+  if (!response.ok) {
+    const message = payload?.errors?.[0]?.message ?? 'AniList request failed.'
+    throw new Error(message)
+  }
+
+  if (payload?.errors?.length) {
+    throw new Error(payload.errors[0]?.message ?? 'AniList request failed.')
+  }
+
+  const detail = payload?.data?.Media ?? null
+  if (!detail) return null
+  if (detail.isAdult) return null
+
+  const title =
+    detail.title?.english ??
+    detail.title?.romaji ??
+    detail.title?.native ??
+    'Untitled'
+
+  const year =
+    detail.seasonYear ??
+    (detail.startDate?.year != null ? detail.startDate.year : null)
+
+  const studios =
+    detail.studios?.nodes
+      ?.map((node) => node?.name ?? undefined)
+      .filter((name): name is string => Boolean(name)) ?? []
+
+  const genres = (detail.genres ?? []).filter(Boolean) as string[]
+
+  return {
+    id: String(detail.id),
+    type: 'anime',
+    title,
+    year: Number.isFinite(year) ? (year as number) : undefined,
+    posterUrl: detail.coverImage?.large ?? undefined,
+    provider: 'anilist',
+    providerId: String(detail.id),
+    description: detail.description ?? undefined,
+    durationMinutes:
+      Number.isFinite(detail.duration) && detail.duration != null
+        ? (detail.duration as number)
+        : undefined,
+    studios,
+    genres,
   }
 }
 

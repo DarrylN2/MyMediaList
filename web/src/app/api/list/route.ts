@@ -3,6 +3,7 @@ import { getSupabaseServerClient } from '@/lib/supabase-server'
 import type { EntryStatus, Media, MediaProvider } from '@/types'
 
 const TMDB_API_BASE = 'https://api.themoviedb.org/3'
+const ANILIST_API_BASE = 'https://graphql.anilist.co'
 
 interface PersistMediaPayload {
   userId: string
@@ -259,6 +260,108 @@ async function resolveMediaMetadata(
       Array.isArray(media.cast) && media.cast.length > 0
         ? media.cast.filter(Boolean)
         : null,
+  }
+
+  if (media.provider === 'anilist') {
+    const isSupportedType = media.type === 'anime'
+    if (!isSupportedType) return { ...base, metadata: null }
+
+    const needsFetch =
+      base.year == null || base.durationMinutes == null || base.genres == null
+    if (!needsFetch) {
+      return {
+        ...base,
+        metadata: {
+          provider: media.provider,
+          providerId: media.providerId,
+          year: base.year,
+          durationMinutes: base.durationMinutes,
+          genres: base.genres,
+          directors: base.directors,
+          writers: base.writers,
+          cast: base.cast,
+        },
+      }
+    }
+
+    const numericId = Number(media.providerId)
+    if (!Number.isFinite(numericId)) return { ...base, metadata: null }
+
+    try {
+      const query = `
+        query ($id: Int) {
+          Media(id: $id, type: ANIME) {
+            id
+            isAdult
+            seasonYear
+            startDate { year }
+            duration
+            genres
+          }
+        }
+      `
+
+      const res = await fetch(ANILIST_API_BASE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ query, variables: { id: numericId } }),
+        next: { revalidate: 0 },
+      })
+      if (!res.ok) return { ...base, metadata: null }
+
+      const data = (await res.json()) as {
+        data?: {
+          Media?: {
+            isAdult?: boolean | null
+            seasonYear?: number | null
+            startDate?: { year?: number | null } | null
+            duration?: number | null
+            genres?: Array<string | null> | null
+          } | null
+        }
+      }
+
+      const detail = data?.data?.Media
+      if (!detail || detail.isAdult) return { ...base, metadata: null }
+
+      const year =
+        base.year ??
+        detail.seasonYear ??
+        (detail.startDate?.year != null ? detail.startDate.year : null)
+
+      const durationMinutes = base.durationMinutes ?? detail.duration ?? null
+
+      const genres =
+        base.genres ??
+        ((detail.genres ?? []).filter(Boolean) as string[]).slice(0)
+
+      return {
+        year: Number.isFinite(year) ? (year as number) : null,
+        durationMinutes:
+          Number.isFinite(durationMinutes) && durationMinutes != null
+            ? (durationMinutes as number)
+            : null,
+        genres: genres.length > 0 ? genres : null,
+        directors: base.directors,
+        writers: base.writers,
+        cast: base.cast,
+        metadata: {
+          provider: media.provider,
+          providerId: media.providerId,
+          year,
+          durationMinutes,
+          genres,
+          directors: base.directors,
+          writers: base.writers,
+          cast: base.cast,
+        },
+      }
+    } catch {
+      return { ...base, metadata: null }
+    }
   }
 
   if (media.provider !== 'tmdb') {

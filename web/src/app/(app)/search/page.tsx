@@ -97,24 +97,6 @@ const typeIconMap: Record<MediaType, LucideIcon> = {
 
 const STATIC_COLLECTION: SearchCategory[] = [
   {
-    id: 'anime',
-    title: 'Anime',
-    helper: 'Stylised adaptations and theatrical cuts',
-    items: [
-      {
-        id: 'arcane-anime',
-        title: 'Arcane (Anime adaptation)',
-        subtitle: '2024 • Movie • Fantasy',
-        description:
-          'A feature-length re-imagining with bespoke fight sequences.',
-        coverUrl:
-          'https://image.tmdb.org/t/p/w500/fqldf2t8ztS4BNP3cMB0DaZhXry.jpg',
-        tags: ['Fortiche Lab', 'Experimental'],
-        type: 'anime',
-      },
-    ],
-  },
-  {
     id: 'songs',
     title: 'Songs/Albums',
     helper: 'Soundtracks and playlists from the series',
@@ -171,6 +153,13 @@ const TV_CATEGORY_BASE: SearchCategory = {
   items: [],
 }
 
+const ANIME_CATEGORY_BASE: SearchCategory = {
+  id: 'anime',
+  title: 'Anime',
+  helper: 'Live data from AniList',
+  items: [],
+}
+
 export default function SearchPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -199,6 +188,8 @@ export default function SearchPage() {
   const [movieCategory, setMovieCategory] =
     useState<SearchCategory>(MOVIE_CATEGORY_BASE)
   const [tvCategory, setTvCategory] = useState<SearchCategory>(TV_CATEGORY_BASE)
+  const [animeCategory, setAnimeCategory] =
+    useState<SearchCategory>(ANIME_CATEGORY_BASE)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const paramQuery = searchParams.get('query') ?? ''
@@ -234,6 +225,7 @@ export default function SearchPage() {
     if (!trimmedQuery) {
       setMovieCategory(MOVIE_CATEGORY_BASE)
       setTvCategory(TV_CATEGORY_BASE)
+      setAnimeCategory(ANIME_CATEGORY_BASE)
       setError(null)
       setIsLoading(false)
       return
@@ -242,10 +234,11 @@ export default function SearchPage() {
     const controller = new AbortController()
     setMovieCategory(MOVIE_CATEGORY_BASE)
     setTvCategory(TV_CATEGORY_BASE)
+    setAnimeCategory(ANIME_CATEGORY_BASE)
     setIsLoading(true)
     setError(null)
 
-    const fetchCategory = async (categoryType: 'movie' | 'tv') => {
+    const fetchCategory = async (categoryType: 'movie' | 'tv' | 'anime') => {
       try {
         const response = await fetch(
           `/api/search?type=${categoryType}&query=${encodeURIComponent(trimmedQuery)}`,
@@ -254,7 +247,7 @@ export default function SearchPage() {
 
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
-          throw new Error(payload?.error ?? 'TMDB search failed.')
+          throw new Error(payload?.error ?? 'Search failed.')
         }
 
         const payload = (await response.json()) as SearchApiResponse
@@ -268,8 +261,13 @@ export default function SearchPage() {
             ...current,
             items: payload.items,
           }))
-        } else {
+        } else if (categoryType === 'tv') {
           setTvCategory((current) => ({
+            ...current,
+            items: payload.items,
+          }))
+        } else {
+          setAnimeCategory((current) => ({
             ...current,
             items: payload.items,
           }))
@@ -282,7 +280,7 @@ export default function SearchPage() {
         if (!controller.signal.aborted) {
           setError(
             (previous) =>
-              previous ?? 'Unable to load TMDB results. Try again in a moment.',
+              previous ?? 'Unable to load results. Try again in a moment.',
           )
         }
       }
@@ -290,9 +288,11 @@ export default function SearchPage() {
 
     const shouldFetchMovie = activeFilter === 'all' || activeFilter === 'movies'
     const shouldFetchTv = activeFilter === 'all' || activeFilter === 'tv'
+    const shouldFetchAnime = activeFilter === 'all' || activeFilter === 'anime'
     const tasks: Array<Promise<void>> = []
     if (shouldFetchMovie) tasks.push(fetchCategory('movie'))
     if (shouldFetchTv) tasks.push(fetchCategory('tv'))
+    if (shouldFetchAnime) tasks.push(fetchCategory('anime'))
 
     if (tasks.length === 0) {
       setIsLoading(false)
@@ -333,10 +333,14 @@ export default function SearchPage() {
       categories.push(tvCategory)
     }
 
+    if (animeCategory.items.length > 0) {
+      categories.push(animeCategory)
+    }
+
     categories.push(...filteredStaticCategories)
 
     return categories
-  }, [movieCategory, tvCategory, filteredStaticCategories])
+  }, [movieCategory, tvCategory, animeCategory, filteredStaticCategories])
 
   const visibleCategories = useMemo(() => {
     if (activeFilter === 'all') {
@@ -395,7 +399,9 @@ export default function SearchPage() {
     }
 
     if (!item.provider || !item.providerId) {
-      toast('Live saving is currently available for TMDB search results only.')
+      toast(
+        'Live saving is currently available for movie/anime search results only.',
+      )
       return
     }
 
@@ -515,7 +521,9 @@ export default function SearchPage() {
     }
 
     if (!item.provider || !item.providerId) {
-      toast('Rating is currently available for TMDB results only.')
+      toast(
+        'Rating is currently available for movie/anime search results only.',
+      )
       return
     }
 

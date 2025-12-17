@@ -15,7 +15,7 @@ import type { EntryStatus, Media } from '@/types'
 
 interface ParsedMediaId {
   provider: string
-  type: 'movie' | 'tv'
+  type: 'movie' | 'tv' | 'anime'
   sourceId: string
 }
 
@@ -406,6 +406,13 @@ function parseMediaRouteId(routeId: string): ParsedMediaId | null {
   const [provider, maybeType, maybeId] = parts
   if (!provider) {
     return null
+  }
+
+  if (provider === 'anilist') {
+    if (maybeType !== 'anime' || !maybeId) {
+      return null
+    }
+    return { provider, type: 'anime', sourceId: maybeId }
   }
 
   if (provider !== 'tmdb') {
