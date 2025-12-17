@@ -206,7 +206,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
       return (
         <div className="overflow-x-auto rounded-2xl border bg-white/95 shadow-sm">
           <div className="min-w-[1280px] divide-y divide-slate-200 p-2">
-            <div className="grid grid-cols-[96px_260px_1fr_80px_100px_120px_160px_120px] items-start gap-3 px-2 pb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <div className="grid grid-cols-[96px_260px_1fr_80px_100px_120px_160px_120px] items-start gap-3 px-2 pb-3 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
               <span />
               <span>Title</span>
               <span>Synopsis</span>

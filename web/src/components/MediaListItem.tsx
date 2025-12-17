@@ -67,7 +67,11 @@ function formatShortDate(iso?: string | null) {
   if (!iso) return '—'
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
 }
 
 function formatLongDate(iso?: string | null) {
@@ -374,20 +378,22 @@ export function MediaListItem({
         </div>
 
         <div className="min-w-0">
-          <p className="line-clamp-2 text-sm text-muted-foreground">
+          <p className="line-clamp-4 text-sm leading-snug text-muted-foreground">
             {synopsis ?? '—'}
           </p>
         </div>
 
-        <div className="text-sm text-muted-foreground">{year ?? '—'}</div>
+        <div className="text-center text-sm text-muted-foreground">
+          {year ?? '—'}
+        </div>
 
-        <div className="text-sm text-muted-foreground">
+        <div className="text-center text-sm text-muted-foreground">
           {runtimeMinutes != null ? formatDuration(runtimeMinutes) : '—'}
         </div>
 
-        <div>{statusNode}</div>
+        <div className="flex justify-center">{statusNode}</div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-center gap-2">
           {onChangeRating ? (
             <Select
               value={ratingValue}
