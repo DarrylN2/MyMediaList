@@ -399,6 +399,26 @@ async function searchAniListAnime(query: string): Promise<SearchResultItem[]> {
   return media.filter((entry) => !entry?.isAdult).map(mapAniListAnimeToResult)
 }
 
+function stripAniListDescription(
+  input: string | null | undefined,
+): string | undefined {
+  if (!input) return undefined
+
+  const withoutTags = input
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?i>/gi, '')
+    .replace(/<\/?[^>]+>/g, '')
+
+  const decoded = withoutTags
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+
+  const trimmed = decoded.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
 function mapAniListAnimeToResult(entry: AniListMediaSummary): SearchResultItem {
   const title =
     entry.title?.english ??
@@ -421,7 +441,7 @@ function mapAniListAnimeToResult(entry: AniListMediaSummary): SearchResultItem {
     id: `anilist-anime-${entry.id}`,
     title,
     subtitle: subtitleParts.join(' • '),
-    description: entry.description ?? undefined,
+    description: stripAniListDescription(entry.description),
     coverUrl: entry.coverImage?.large ?? undefined,
     tags,
     type: 'anime',
@@ -439,7 +459,6 @@ function buildAniListTags(entry: AniListMediaSummary): string[] {
   }
 
   if (entry.episodes) tags.push(`${entry.episodes} eps`)
-  if (entry.duration) tags.push(`${entry.duration}m`)
 
   if (tags.length === 0) {
     tags.push(FALLBACK_TAG)

@@ -179,6 +179,8 @@ export default function MediaDetailPage({
     )
   }
 
+  const cleanDescription = stripAniListDescription(media.description)
+
   const openAddToList = async () => {
     if (!userId) {
       toast('Log in to add items to your list.')
@@ -233,7 +235,7 @@ export default function MediaDetailPage({
             type: media.type,
             title: media.title,
             posterUrl: media.posterUrl,
-            description: media.description,
+            description: cleanDescription,
             year: media.year,
             durationMinutes: media.durationMinutes,
             episodeCount: media.episodeCount,
@@ -331,7 +333,7 @@ export default function MediaDetailPage({
             type: media.type,
             title: media.title,
             posterUrl: media.posterUrl,
-            description: media.description,
+            description: cleanDescription,
             year: media.year,
             durationMinutes: media.durationMinutes,
             episodeCount: media.episodeCount,
@@ -516,20 +518,21 @@ export default function MediaDetailPage({
                   {media.year ? (
                     <Badge variant="outline">{media.year}</Badge>
                   ) : null}
+                  {(media.type === 'tv' || media.type === 'anime') &&
+                  media.episodeCount ? (
+                    <Badge variant="outline">{media.episodeCount} eps</Badge>
+                  ) : null}
                   {media.contentRating ? (
                     <Badge variant="outline" className="tracking-wide">
                       {media.contentRating}
                     </Badge>
                   ) : null}
-                  {media.type === 'tv' && media.episodeCount ? (
-                    <span>• {media.episodeCount} eps</span>
-                  ) : null}
                 </div>
               </div>
 
-              {media.description ? (
+              {cleanDescription ? (
                 <p className="max-w-3xl text-base leading-relaxed text-foreground/85">
-                  {media.description}
+                  {cleanDescription}
                 </p>
               ) : null}
             </div>
@@ -550,12 +553,20 @@ export default function MediaDetailPage({
                 <Clock className="mt-0.5 h-5 w-5 text-muted-foreground" />
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {media.type === 'tv' ? 'Episode length' : 'Runtime'}
+                    {media.type === 'tv'
+                      ? 'Episode length'
+                      : media.type === 'anime'
+                        ? 'Episodes'
+                        : 'Runtime'}
                   </div>
                   <div className="text-base font-medium">
-                    {media.durationMinutes
-                      ? `${media.durationMinutes} minutes`
-                      : '—'}
+                    {media.type === 'anime'
+                      ? media.episodeCount
+                        ? `${media.episodeCount} episodes`
+                        : '—'
+                      : media.durationMinutes
+                        ? `${media.durationMinutes} minutes`
+                        : '—'}
                   </div>
                 </div>
               </div>
@@ -1054,4 +1065,24 @@ function parseMediaRouteId(routeId: string): ParsedMediaId | null {
   }
 
   return { provider, type: 'movie', sourceId: parts.slice(1).join('-') }
+}
+
+function stripAniListDescription(
+  input: string | null | undefined,
+): string | undefined {
+  if (!input) return undefined
+
+  const withoutTags = input
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?i>/gi, '')
+    .replace(/<\/?[^>]+>/g, '')
+
+  const decoded = withoutTags
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+
+  const trimmed = decoded.trim()
+  return trimmed.length > 0 ? trimmed : undefined
 }

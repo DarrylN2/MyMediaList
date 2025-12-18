@@ -302,7 +302,7 @@ export function MediaListItem({
 
   const metaSuffixParts: string[] = []
   if (year != null) metaSuffixParts.push(String(year))
-  if (type === 'tv') {
+  if (type === 'tv' || type === 'anime') {
     if (episodeCount != null && episodeCount > 0) {
       metaSuffixParts.push(`${episodeCount} eps`)
     }
@@ -395,7 +395,7 @@ export function MediaListItem({
         </div>
 
         <div className="text-center text-sm text-muted-foreground">
-          {type === 'tv'
+          {type === 'tv' || type === 'anime'
             ? episodeCount != null && episodeCount > 0
               ? `${episodeCount} eps`
               : '—'

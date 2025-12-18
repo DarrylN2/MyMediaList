@@ -14,6 +14,26 @@ const DETAIL_ENDPOINTS = {
 type DetailType = keyof typeof DETAIL_ENDPOINTS
 const SUPPORTED_TYPES = new Set<DetailType>(['movie', 'tv'])
 
+function stripAniListDescription(
+  input: string | null | undefined,
+): string | undefined {
+  if (!input) return undefined
+
+  const withoutTags = input
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?i>/gi, '')
+    .replace(/<\/?[^>]+>/g, '')
+
+  const decoded = withoutTags
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+
+  const trimmed = decoded.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ provider: string; id: string }> },
@@ -139,6 +159,7 @@ interface AniListAnimeDetail {
   description?: string | null
   seasonYear?: number | null
   startDate?: { year?: number | null }
+  episodes?: number | null
   duration?: number | null
   genres?: string[] | null
   coverImage?: { large?: string | null }
@@ -168,6 +189,7 @@ async function fetchAniListAnimeDetail(
         description(asHtml: false)
         seasonYear
         startDate { year }
+        episodes
         duration
         genres
         coverImage { large }
@@ -281,7 +303,11 @@ async function fetchAniListAnimeDetail(
     posterUrl: detail.coverImage?.large ?? undefined,
     provider: 'anilist',
     providerId: String(detail.id),
-    description: detail.description ?? undefined,
+    description: stripAniListDescription(detail.description),
+    episodeCount:
+      Number.isFinite(detail.episodes) && detail.episodes != null
+        ? (detail.episodes as number)
+        : undefined,
     durationMinutes:
       Number.isFinite(detail.duration) && detail.duration != null
         ? (detail.duration as number)

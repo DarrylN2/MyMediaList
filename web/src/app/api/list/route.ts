@@ -276,7 +276,10 @@ async function resolveMediaMetadata(
     if (!isSupportedType) return { ...base, metadata: null }
 
     const needsFetch =
-      base.year == null || base.durationMinutes == null || base.genres == null
+      base.year == null ||
+      base.durationMinutes == null ||
+      base.genres == null ||
+      episodeCount == null
     if (!needsFetch) {
       return {
         ...base,
@@ -285,6 +288,7 @@ async function resolveMediaMetadata(
           providerId: media.providerId,
           year: base.year,
           durationMinutes: base.durationMinutes,
+          episodeCount,
           genres: base.genres,
           directors: base.directors,
           writers: base.writers,
@@ -304,6 +308,7 @@ async function resolveMediaMetadata(
             isAdult
             seasonYear
             startDate { year }
+            episodes
             duration
             genres
           }
@@ -327,6 +332,7 @@ async function resolveMediaMetadata(
             isAdult?: boolean | null
             seasonYear?: number | null
             startDate?: { year?: number | null } | null
+            episodes?: number | null
             duration?: number | null
             genres?: Array<string | null> | null
           } | null
@@ -340,6 +346,12 @@ async function resolveMediaMetadata(
         base.year ??
         detail.seasonYear ??
         (detail.startDate?.year != null ? detail.startDate.year : null)
+
+      const resolvedEpisodeCount =
+        episodeCount ??
+        (Number.isFinite(detail.episodes) && detail.episodes != null
+          ? (detail.episodes as number)
+          : null)
 
       const durationMinutes = base.durationMinutes ?? detail.duration ?? null
 
@@ -362,6 +374,7 @@ async function resolveMediaMetadata(
           providerId: media.providerId,
           year,
           durationMinutes,
+          episodeCount: resolvedEpisodeCount,
           genres,
           directors: base.directors,
           writers: base.writers,

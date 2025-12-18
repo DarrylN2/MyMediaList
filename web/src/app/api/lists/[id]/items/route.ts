@@ -14,6 +14,7 @@ interface MediaPayload {
   description?: string
   year?: number
   durationMinutes?: number
+  episodeCount?: number
   genres?: string[]
   directors?: string[]
   writers?: string[]
@@ -202,6 +203,11 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
   cast: string[] | null
   metadata: Record<string, unknown> | null
 }> {
+  const episodeCount =
+    Number.isFinite(media.episodeCount) && media.episodeCount != null
+      ? (media.episodeCount as number)
+      : null
+
   const base = {
     year: Number.isFinite(media.year) ? (media.year as number) : null,
     durationMinutes: Number.isFinite(media.durationMinutes)
@@ -230,7 +236,10 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
     if (!isSupportedType) return { ...base, metadata: null }
 
     const needsFetch =
-      base.year == null || base.durationMinutes == null || base.genres == null
+      base.year == null ||
+      base.durationMinutes == null ||
+      base.genres == null ||
+      episodeCount == null
     if (!needsFetch) {
       return {
         ...base,
@@ -239,6 +248,7 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
           providerId: media.providerId,
           year: base.year,
           durationMinutes: base.durationMinutes,
+          episodeCount,
           genres: base.genres,
           directors: base.directors,
           writers: base.writers,
@@ -258,6 +268,7 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
             isAdult
             seasonYear
             startDate { year }
+            episodes
             duration
             genres
           }
@@ -281,6 +292,7 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
             isAdult?: boolean | null
             seasonYear?: number | null
             startDate?: { year?: number | null } | null
+            episodes?: number | null
             duration?: number | null
             genres?: Array<string | null> | null
           } | null
@@ -294,6 +306,12 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
         base.year ??
         detail.seasonYear ??
         (detail.startDate?.year != null ? detail.startDate.year : null)
+
+      const resolvedEpisodeCount =
+        episodeCount ??
+        (Number.isFinite(detail.episodes) && detail.episodes != null
+          ? (detail.episodes as number)
+          : null)
 
       const durationMinutes = base.durationMinutes ?? detail.duration ?? null
 
@@ -316,6 +334,7 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
           providerId: media.providerId,
           year,
           durationMinutes,
+          episodeCount: resolvedEpisodeCount,
           genres,
           directors: base.directors,
           writers: base.writers,
@@ -494,6 +513,32 @@ async function patchMediaRowIfMissing(
   }
   if (row.metadata == null && resolved.metadata != null) {
     update.metadata = resolved.metadata
+  }
+
+  const resolvedEpisodeCount =
+    typeof resolved.metadata?.episodeCount === 'number' &&
+    Number.isFinite(resolved.metadata.episodeCount)
+      ? resolved.metadata.episodeCount
+      : null
+  const existingEpisodeCount =
+    typeof (row.metadata as Record<string, unknown> | null)?.episodeCount ===
+      'number' &&
+    Number.isFinite(
+      (row.metadata as Record<string, unknown>).episodeCount as number,
+    )
+      ? ((row.metadata as Record<string, unknown>).episodeCount as number)
+      : null
+
+  if (existingEpisodeCount == null && resolvedEpisodeCount != null) {
+    update.metadata =
+      row.metadata &&
+      typeof row.metadata === 'object' &&
+      !Array.isArray(row.metadata)
+        ? {
+            ...(row.metadata as Record<string, unknown>),
+            episodeCount: resolvedEpisodeCount,
+          }
+        : { ...(resolved.metadata ?? {}), episodeCount: resolvedEpisodeCount }
   }
 
   if (Object.keys(update).length === 0) return
