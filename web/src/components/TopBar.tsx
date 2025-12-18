@@ -69,9 +69,6 @@ export function TopBar() {
     if (pathname !== '/search') return ''
     return searchParams.get('query') ?? ''
   }, [pathname, searchParams])
-  const [searchTerm, setSearchTerm] = useState(
-    () => searchParams.get('query') ?? '',
-  )
   const [categoryDraft, setCategoryDraft] = useState<SearchCategoryFilter>(() =>
     parseCategoryFilter(searchParams.get('category')),
   )
@@ -97,10 +94,10 @@ export function TopBar() {
     router.replace(`/search${qs ? `?${qs}` : ''}`)
   }
 
-  const navigateToSearch = () => {
-    const trimmed = (pathname === '/search' ? queryFromUrl : searchTerm).trim()
+  const navigateToSearch = (value: string) => {
+    const trimmed = value.trim()
     const params = new URLSearchParams()
-    if (trimmed) params.set('query', trimmed)
+    params.set('query', trimmed)
     if (category !== 'all') params.set('category', category)
     const qs = params.toString()
     router.push(`/search${qs ? `?${qs}` : ''}`)
@@ -108,7 +105,9 @@ export function TopBar() {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    navigateToSearch()
+    const formData = new FormData(event.currentTarget)
+    const value = String(formData.get('query') ?? '')
+    navigateToSearch(value)
   }
 
   const profileInitial = user?.username?.[0]?.toUpperCase()
@@ -178,19 +177,12 @@ export function TopBar() {
                 <Search className="h-4 w-4" />
               </button>
               <Input
+                key={
+                  pathname === '/search' ? `search:${queryFromUrl}` : 'global'
+                }
                 type="search"
-                value={pathname === '/search' ? queryFromUrl : searchTerm}
-                onChange={(event) => {
-                  if (pathname === '/search') {
-                    const next = event.target.value
-                    const params = new URLSearchParams(searchParams.toString())
-                    params.set('query', next.trim() ? next : '')
-                    const qs = params.toString()
-                    router.replace(`/search${qs ? `?${qs}` : ''}`)
-                    return
-                  }
-                  setSearchTerm(event.target.value)
-                }}
+                name="query"
+                defaultValue={pathname === '/search' ? queryFromUrl : ''}
                 placeholder="Search movies, anime, songs, games…"
                 className="h-10 w-full rounded-full pl-28 pr-12"
                 aria-label="Search media"

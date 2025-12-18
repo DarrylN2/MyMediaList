@@ -11,6 +11,138 @@ type TmdbSearchType = keyof typeof TMDB_ENDPOINTS
 type SearchType = TmdbSearchType | 'anime'
 const SUPPORTED_TYPES = new Set<SearchType>(['movie', 'tv', 'anime'])
 const FALLBACK_TAG = 'Search'
+const TMDB_DETAIL_LIMIT = 10
+const TMDB_CACHE_TTL_MS = 1000 * 60 * 60 * 24 // 24h
+const TMDB_DETAIL_CONCURRENCY = 4
+
+type GenreMap = Map<number, string>
+type TmdbDetailsCacheValue = { value: number | null; fetchedAt: number }
+
+let movieGenreCache: { map: GenreMap; fetchedAt: number } | null = null
+let tvGenreCache: { map: GenreMap; fetchedAt: number } | null = null
+const movieRuntimeCache = new Map<number, TmdbDetailsCacheValue>()
+const tvEpisodeCountCache = new Map<number, TmdbDetailsCacheValue>()
+
+function cacheGet(map: Map<number, TmdbDetailsCacheValue>, id: number) {
+  const hit = map.get(id)
+  if (!hit) return null
+  if (Date.now() - hit.fetchedAt > TMDB_CACHE_TTL_MS) {
+    map.delete(id)
+    return null
+  }
+  return hit.value
+}
+
+function cacheSet(
+  map: Map<number, TmdbDetailsCacheValue>,
+  id: number,
+  value: number | null,
+) {
+  map.set(id, { value, fetchedAt: Date.now() })
+}
+
+async function getTmdbGenreMap(type: 'movie' | 'tv', apiKey: string) {
+  const cache = type === 'movie' ? movieGenreCache : tvGenreCache
+  if (cache && Date.now() - cache.fetchedAt < TMDB_CACHE_TTL_MS)
+    return cache.map
+
+  const url = new URL(`${TMDB_API_BASE}/genre/${type}/list`)
+  url.searchParams.set('api_key', apiKey)
+  url.searchParams.set('language', 'en-US')
+
+  const res = await fetch(url, { next: { revalidate: 0 } })
+  const json = (await res.json().catch(() => null)) as {
+    genres?: Array<{ id: number; name: string }>
+  } | null
+
+  const map: GenreMap = new Map()
+  for (const g of json?.genres ?? []) {
+    if (typeof g?.id === 'number' && typeof g?.name === 'string' && g.name) {
+      map.set(g.id, g.name)
+    }
+  }
+
+  const nextCache = { map, fetchedAt: Date.now() }
+  if (type === 'movie') movieGenreCache = nextCache
+  else tvGenreCache = nextCache
+
+  return map
+}
+
+function buildGenreTags(
+  genreIds: number[] | undefined,
+  genreMap: GenreMap,
+): string[] {
+  const names = (genreIds ?? [])
+    .map((id) => genreMap.get(id))
+    .filter((v): v is string => Boolean(v))
+    .slice(0, 5)
+  return names.length ? names : [FALLBACK_TAG]
+}
+
+async function getTmdbMovieRuntimeMinutes(id: number, apiKey: string) {
+  const cached = cacheGet(movieRuntimeCache, id)
+  if (cached !== null) return cached
+
+  const url = new URL(`${TMDB_API_BASE}/movie/${id}`)
+  url.searchParams.set('api_key', apiKey)
+  url.searchParams.set('language', 'en-US')
+
+  const res = await fetch(url, { next: { revalidate: 0 } })
+  const json = (await res.json().catch(() => null)) as {
+    runtime?: number | null
+  } | null
+
+  const runtime =
+    typeof json?.runtime === 'number' && Number.isFinite(json.runtime)
+      ? Math.max(0, Math.round(json.runtime))
+      : null
+  cacheSet(movieRuntimeCache, id, runtime)
+  return runtime
+}
+
+async function getTmdbTvEpisodeCount(id: number, apiKey: string) {
+  const cached = cacheGet(tvEpisodeCountCache, id)
+  if (cached !== null) return cached
+
+  const url = new URL(`${TMDB_API_BASE}/tv/${id}`)
+  url.searchParams.set('api_key', apiKey)
+  url.searchParams.set('language', 'en-US')
+
+  const res = await fetch(url, { next: { revalidate: 0 } })
+  const json = (await res.json().catch(() => null)) as {
+    number_of_episodes?: number | null
+  } | null
+
+  const episodes =
+    typeof json?.number_of_episodes === 'number' &&
+    Number.isFinite(json.number_of_episodes)
+      ? Math.max(0, Math.round(json.number_of_episodes))
+      : null
+  cacheSet(tvEpisodeCountCache, id, episodes)
+  return episodes
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let nextIndex = 0
+
+  const workers = Array.from({
+    length: Math.max(1, Math.min(limit, items.length)),
+  }).map(async () => {
+    while (nextIndex < items.length) {
+      const current = nextIndex++
+      results[current] = await mapper(items[current], current)
+    }
+  })
+
+  await Promise.all(workers)
+  return results
+}
 
 interface TmdbMovieResult {
   id: number
@@ -102,6 +234,11 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  const [movieGenreMap, tvGenreMap] = await Promise.all([
+    getTmdbGenreMap('movie', apiKey),
+    getTmdbGenreMap('tv', apiKey),
+  ])
+
   const tmdbUrl = new URL(`${TMDB_API_BASE}/${TMDB_ENDPOINTS[type]}`)
   tmdbUrl.searchParams.set('query', query)
   tmdbUrl.searchParams.set('include_adult', 'false')
@@ -125,10 +262,49 @@ export async function GET(request: NextRequest) {
     const data = (await response.json()) as {
       results?: TmdbMovieResult[] | TmdbTvResult[]
     }
-    const items = (data.results ?? []).map((entry) =>
+    const results = data.results ?? []
+    const detailTargets = results.slice(0, TMDB_DETAIL_LIMIT)
+
+    const details = await mapWithConcurrency(
+      detailTargets,
+      TMDB_DETAIL_CONCURRENCY,
+      async (entry) => {
+        if (type === 'movie') {
+          const movie = entry as TmdbMovieResult
+          return {
+            id: movie.id,
+            runtimeMinutes: await getTmdbMovieRuntimeMinutes(movie.id, apiKey),
+          }
+        }
+        const show = entry as TmdbTvResult
+        return {
+          id: show.id,
+          episodeCount: await getTmdbTvEpisodeCount(show.id, apiKey),
+        }
+      },
+    )
+
+    const runtimeById = new Map<number, number | null>()
+    const episodeCountById = new Map<number, number | null>()
+    for (const item of details) {
+      if ('runtimeMinutes' in item)
+        runtimeById.set(item.id, item.runtimeMinutes)
+      if ('episodeCount' in item)
+        episodeCountById.set(item.id, item.episodeCount)
+    }
+
+    const items = results.map((entry) =>
       type === 'movie'
-        ? mapTmdbMovieToResult(entry as TmdbMovieResult)
-        : mapTmdbTvToResult(entry as TmdbTvResult),
+        ? mapTmdbMovieToResult(
+            entry as TmdbMovieResult,
+            movieGenreMap,
+            runtimeById.get((entry as TmdbMovieResult).id) ?? null,
+          )
+        : mapTmdbTvToResult(
+            entry as TmdbTvResult,
+            tvGenreMap,
+            episodeCountById.get((entry as TmdbTvResult).id) ?? null,
+          ),
     )
 
     return NextResponse.json<SearchResponse>({
@@ -272,16 +448,25 @@ function buildAniListTags(entry: AniListMediaSummary): string[] {
   return tags
 }
 
-function mapTmdbMovieToResult(movie: TmdbMovieResult): SearchResultItem {
+function mapTmdbMovieToResult(
+  movie: TmdbMovieResult,
+  genreMap: GenreMap,
+  runtimeMinutes: number | null,
+): SearchResultItem {
   const title = movie.title ?? movie.original_title ?? 'Untitled'
   const releaseYear = movie.release_date?.slice(0, 4)
+  const runtimeLabel =
+    typeof runtimeMinutes === 'number' && runtimeMinutes > 0
+      ? `${runtimeMinutes}m`
+      : undefined
   const subtitleParts = [
     releaseYear,
     'Movie',
+    runtimeLabel,
     movie.original_language?.toUpperCase(),
   ].filter(Boolean)
 
-  const tags = buildTags(movie)
+  const tags = buildGenreTags(movie.genre_ids, genreMap)
 
   return {
     id: `tmdb-${movie.id}`,
@@ -298,16 +483,25 @@ function mapTmdbMovieToResult(movie: TmdbMovieResult): SearchResultItem {
   }
 }
 
-function mapTmdbTvToResult(show: TmdbTvResult): SearchResultItem {
+function mapTmdbTvToResult(
+  show: TmdbTvResult,
+  genreMap: GenreMap,
+  episodeCount: number | null,
+): SearchResultItem {
   const title = show.name ?? show.original_name ?? 'Untitled'
   const releaseYear = show.first_air_date?.slice(0, 4)
+  const episodeLabel =
+    typeof episodeCount === 'number' && episodeCount > 0
+      ? `${episodeCount} eps`
+      : undefined
   const subtitleParts = [
     releaseYear,
     'TV Series',
+    episodeLabel,
     show.original_language?.toUpperCase(),
   ].filter(Boolean)
 
-  const tags = buildTags(show)
+  const tags = buildGenreTags(show.genre_ids, genreMap)
 
   return {
     id: `tmdb-tv-${show.id}`,
@@ -322,32 +516,4 @@ function mapTmdbTvToResult(show: TmdbTvResult): SearchResultItem {
     provider: 'tmdb',
     providerId: String(show.id),
   }
-}
-
-interface RatingSummary {
-  vote_average?: number
-  vote_count?: number
-  popularity?: number
-}
-
-function buildTags(entry: RatingSummary): string[] {
-  const tags: string[] = []
-
-  if (entry.vote_average) {
-    tags.push(`${entry.vote_average.toFixed(1)} avg`)
-  }
-
-  if (entry.vote_count) {
-    tags.push(`${entry.vote_count.toLocaleString()} votes`)
-  }
-
-  if (entry.popularity) {
-    tags.push(`Pop ${Math.round(entry.popularity)}`)
-  }
-
-  if (tags.length === 0) {
-    tags.push(FALLBACK_TAG)
-  }
-
-  return tags
 }

@@ -164,6 +164,7 @@ export default function SearchPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
+  const [ratedKeys, setRatedKeys] = useState<Set<string>>(() => new Set())
   const [activeFilter, setActiveFilter] = useState<CategoryFilter>(() =>
     parseCategoryFilter(searchParams.get('category')),
   )
@@ -194,6 +195,55 @@ export default function SearchPage() {
   const [error, setError] = useState<string | null>(null)
   const paramQuery = searchParams.get('query') ?? ''
   const searchQuery = searchParams.has('query') ? paramQuery : DEFAULT_QUERY
+  const [queryDraft, setQueryDraft] = useState(searchQuery)
+
+  useEffect(() => {
+    setQueryDraft(searchQuery)
+  }, [searchQuery])
+
+  useEffect(() => {
+    if (!user?.email) {
+      setRatedKeys(new Set())
+      return
+    }
+
+    const controller = new AbortController()
+
+    const load = async () => {
+      try {
+        const response = await fetch(
+          `/api/ratings?userId=${encodeURIComponent(user.email)}`,
+          { signal: controller.signal },
+        )
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.error ?? 'Unable to load ratings.')
+        }
+
+        const payload = (await response.json()) as {
+          items?: Array<{
+            media?: { provider?: string; providerId?: string } | null
+          }>
+        }
+
+        const next = new Set<string>()
+        for (const item of payload.items ?? []) {
+          const provider = item.media?.provider
+          const providerId = item.media?.providerId
+          if (provider && providerId) {
+            next.add(`${provider}:${providerId}`)
+          }
+        }
+        setRatedKeys(next)
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') return
+        console.error(error)
+      }
+    }
+
+    void load()
+    return () => controller.abort()
+  }, [user?.email])
 
   useEffect(() => {
     const next = parseCategoryFilter(searchParams.get('category'))
@@ -387,7 +437,7 @@ export default function SearchPage() {
 
     const queryString = params.toString()
 
-    router.replace(`/search${queryString ? `?${queryString}` : ''}`, {
+    router.push(`/search${queryString ? `?${queryString}` : ''}`, {
       scroll: false,
     })
   }
@@ -594,6 +644,14 @@ export default function SearchPage() {
         throw new Error(payload?.error ?? 'Unable to save rating.')
       }
 
+      setRatedKeys((prev) => {
+        const next = new Set(prev)
+        const key = `${rateItem.provider}:${rateItem.providerId}`
+        if (rateRating > 0) next.add(key)
+        else next.delete(key)
+        return next
+      })
+
       toast.success(`Saved your rating for ${rateItem.title}.`)
       setRateOpen(false)
     } catch (error) {
@@ -608,7 +666,7 @@ export default function SearchPage() {
 
   return (
     <div className="space-y-8 pb-12">
-      <div className="rounded-3xl border bg-white/80 p-6 shadow-sm backdrop-blur">
+      <div className="rounded-xl border bg-white/80 p-6 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -667,8 +725,14 @@ export default function SearchPage() {
               <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="search"
-                value={searchQuery}
-                onChange={(event) => updateSearchQuery(event.target.value)}
+                value={queryDraft}
+                onChange={(event) => setQueryDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    updateSearchQuery(queryDraft)
+                  }
+                }}
                 placeholder="Search movies, anime, songs, games…"
                 aria-label="Search media"
                 className="h-11 w-full rounded-full border border-slate-200 bg-white/70 pl-12 pr-4 text-base"
@@ -711,6 +775,7 @@ export default function SearchPage() {
               onAdd={handleAdd}
               onSelect={handleSelect}
               onRate={handleRate}
+              ratedKeys={ratedKeys}
             />
           ))}
         </div>
@@ -885,6 +950,7 @@ interface SearchCategorySectionProps {
   onAdd: (item: SearchResultItem) => void
   onSelect: (item: SearchResultItem) => void
   onRate: (item: SearchResultItem) => void
+  ratedKeys: Set<string>
 }
 
 function SearchCategorySection({
@@ -892,6 +958,7 @@ function SearchCategorySection({
   onAdd,
   onSelect,
   onRate,
+  ratedKeys,
 }: SearchCategorySectionProps) {
   return (
     <section className="space-y-4">
@@ -919,6 +986,10 @@ function SearchCategorySection({
             onAdd={() => onAdd(item)}
             onRate={() => onRate(item)}
             onSelect={() => onSelect(item)}
+            isRated={
+              Boolean(item.provider && item.providerId) &&
+              ratedKeys.has(`${item.provider}:${item.providerId}`)
+            }
           />
         ))}
       </div>
@@ -931,6 +1002,7 @@ interface SearchResultCardProps {
   onAdd: () => void
   onRate: () => void
   onSelect: () => void
+  isRated: boolean
 }
 
 function SearchResultCard({
@@ -938,6 +1010,7 @@ function SearchResultCard({
   onAdd,
   onRate,
   onSelect,
+  isRated,
 }: SearchResultCardProps) {
   const TypeIcon = typeIconMap[item.type]
 
@@ -953,17 +1026,17 @@ function SearchResultCard({
           onSelect()
         }
       }}
-      className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white/95 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 md:flex-row md:items-center"
+      className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 md:flex-row md:items-stretch"
     >
       <div className="flex flex-1 gap-4">
-        <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100">
+        <div className="relative w-24 aspect-[2/3] flex-shrink-0 overflow-hidden rounded-xl">
           {item.coverUrl ? (
             <Image
               src={item.coverUrl}
               alt={item.title}
               fill
               sizes="96px"
-              className="object-cover"
+              className="object-contain"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-indigo-600">
@@ -972,9 +1045,9 @@ function SearchResultCard({
           )}
         </div>
 
-        <div className="space-y-3">
+        <div className="flex h-full flex-col gap-1 md:self-stretch">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-semibold leading-tight">
+            <h3 className="h-7 line-clamp-1 text-lg font-semibold leading-tight">
               {item.title}
             </h3>
             {item.status && (
@@ -985,44 +1058,44 @@ function SearchResultCard({
             )}
           </div>
           <p className="text-sm text-muted-foreground">{item.subtitle}</p>
-          {item.description && (
-            <p className="text-sm text-muted-foreground">{item.description}</p>
-          )}
-          {item.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {item.tags.map((tag) => (
-                <Badge
-                  key={tag}
-                  variant="outline"
-                  className="rounded-full border-dashed px-3 py-1 text-xs"
-                >
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          )}
+          <p className="h-10 line-clamp-2 text-sm text-muted-foreground">
+            {item.description ?? ''}
+          </p>
+          <div className="mt-auto flex h-7 flex-wrap gap-2 overflow-hidden">
+            {item.tags.map((tag) => (
+              <Badge
+                key={tag}
+                variant="outline"
+                className="rounded-full border-dashed px-3 py-1 text-xs"
+              >
+                {tag}
+              </Badge>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
+      <div className="flex w-full flex-col gap-2 md:w-36 md:self-center">
         <Button
           type="button"
           variant="outline"
+          size="sm"
           onClick={(event) => {
             event.stopPropagation()
             onRate()
           }}
-          className="w-full rounded-full px-6 py-2 text-sm font-semibold md:w-auto"
+          className="w-full rounded-full text-sm font-semibold"
         >
-          Rate
+          {isRated ? 'Rated' : 'Rate'}
         </Button>
         <Button
           type="button"
+          size="sm"
           onClick={(event) => {
             event.stopPropagation()
             onAdd()
           }}
-          className="w-full rounded-full px-6 py-2 text-sm font-semibold md:w-auto"
+          className="w-full rounded-full text-sm font-semibold"
         >
           Add to list
         </Button>
