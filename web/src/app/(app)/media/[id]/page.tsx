@@ -10,7 +10,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { useAuth } from '@/context/AuthContext'
 import { toast } from 'sonner'
 import type { EntryStatus, Media } from '@/types'
@@ -38,6 +45,16 @@ export default function MediaDetailPage({
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [listsLoading, setListsLoading] = useState(false)
+  const [listsError, setListsError] = useState<string | null>(null)
+  const [lists, setLists] = useState<
+    Array<{ id: string; title: string; description: string | null }>
+  >([])
+  const [newListTitle, setNewListTitle] = useState('')
+  const [newListDescription, setNewListDescription] = useState('')
+  const [createAndAddSaving, setCreateAndAddSaving] = useState(false)
+  const [addSavingListId, setAddSavingListId] = useState<string | null>(null)
 
   useEffect(() => {
     const parsed = parseMediaRouteId(id)
@@ -160,6 +177,128 @@ export default function MediaDetailPage({
         {error ?? 'Media not found.'}
       </div>
     )
+  }
+
+  const openAddToList = async () => {
+    if (!userId) {
+      toast('Log in to add items to your list.')
+      return
+    }
+
+    if (!media.provider || !media.providerId) {
+      toast('This item cannot be added to a list yet.')
+      return
+    }
+
+    try {
+      setAddOpen(true)
+      setListsLoading(true)
+      setListsError(null)
+
+      const response = await fetch(
+        `/api/lists?userId=${encodeURIComponent(userId)}`,
+      )
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to load lists.')
+      }
+
+      const payload = (await response.json()) as {
+        lists: Array<{ id: string; title: string; description: string | null }>
+      }
+      setLists(payload.lists ?? [])
+    } catch (error) {
+      console.error(error)
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to load lists.',
+      )
+      setListsError(error instanceof Error ? error.message : 'Unable to load.')
+    } finally {
+      setListsLoading(false)
+    }
+  }
+
+  const addToList = async (listId: string) => {
+    if (!userId || !media.provider || !media.providerId) return
+    setAddSavingListId(listId)
+    try {
+      const response = await fetch(`/api/lists/${listId}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          media: {
+            provider: media.provider,
+            providerId: media.providerId,
+            type: media.type,
+            title: media.title,
+            posterUrl: media.posterUrl,
+            description: media.description,
+            year: media.year,
+            durationMinutes: media.durationMinutes,
+            episodeCount: media.episodeCount,
+            genres: media.genres,
+            directors: media.directors,
+            writers: media.writers,
+            cast: media.cast,
+          },
+        }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to add to list.')
+      }
+
+      toast.success(
+        `Added ${media.title} to "${lists.find((l) => l.id === listId)?.title ?? 'list'}".`,
+      )
+      setAddOpen(false)
+    } catch (error) {
+      console.error(error)
+      toast.error(error instanceof Error ? error.message : 'Unable to add.')
+    } finally {
+      setAddSavingListId(null)
+    }
+  }
+
+  const createListAndAdd = async () => {
+    if (!userId || !media) return
+    const title = newListTitle.trim()
+    if (!title) {
+      toast('List title is required.')
+      return
+    }
+
+    setCreateAndAddSaving(true)
+    try {
+      const createRes = await fetch('/api/lists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          title,
+          description: newListDescription.trim(),
+        }),
+      })
+      if (!createRes.ok) {
+        const payload = await createRes.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to create list.')
+      }
+
+      const createPayload = (await createRes.json()) as {
+        list: { id: string; title: string; description: string | null }
+      }
+
+      const listId = createPayload.list.id
+      await addToList(listId)
+      setNewListTitle('')
+      setNewListDescription('')
+    } catch (error) {
+      console.error(error)
+      toast.error(error instanceof Error ? error.message : 'Unable to create.')
+    } finally {
+      setCreateAndAddSaving(false)
+    }
   }
 
   const handleSaveEntry = async () => {
@@ -705,6 +844,16 @@ export default function MediaDetailPage({
                 </div>
 
                 <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={openAddToList}
+                  disabled={!user || isSaving}
+                >
+                  Add to list
+                </Button>
+
+                <Button
                   className="w-full"
                   onClick={handleSaveEntry}
                   disabled={isSaving}
@@ -754,6 +903,94 @@ export default function MediaDetailPage({
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={addOpen}
+        onOpenChange={(open) => {
+          setAddOpen(open)
+          if (!open) {
+            setListsError(null)
+            setNewListTitle('')
+            setNewListDescription('')
+            setAddSavingListId(null)
+            setCreateAndAddSaving(false)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{`Add to list: ${media.title}`}</DialogTitle>
+          </DialogHeader>
+
+          {listsLoading ? (
+            <div className="text-sm text-muted-foreground">Loading lists…</div>
+          ) : listsError ? (
+            <div className="text-sm text-rose-700">{listsError}</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {lists.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    You don’t have any lists yet. Create one below.
+                  </div>
+                ) : (
+                  <div className="grid gap-2">
+                    {lists.map((list) => (
+                      <Button
+                        key={list.id}
+                        type="button"
+                        variant="outline"
+                        className="justify-start"
+                        onClick={() => addToList(list.id)}
+                        disabled={
+                          addSavingListId === list.id || createAndAddSaving
+                        }
+                      >
+                        {addSavingListId === list.id ? 'Adding…' : list.title}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border p-3">
+                <div className="space-y-3">
+                  <div className="text-sm font-medium">Create a new list</div>
+                  <Input
+                    value={newListTitle}
+                    onChange={(e) => setNewListTitle(e.target.value)}
+                    placeholder="List title"
+                  />
+                  <Textarea
+                    value={newListDescription}
+                    onChange={(e) => setNewListDescription(e.target.value)}
+                    placeholder="Description (optional)"
+                    rows={3}
+                  />
+                  <Button
+                    type="button"
+                    onClick={createListAndAdd}
+                    disabled={createAndAddSaving}
+                    className="w-full"
+                  >
+                    {createAndAddSaving ? 'Creating…' : 'Create list & add'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAddOpen(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={Boolean(selectedImage)}
