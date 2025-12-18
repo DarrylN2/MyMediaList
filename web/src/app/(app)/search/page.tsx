@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { EmptyState } from '@/components/EmptyState'
 import { RatingStars } from '@/components/RatingStars'
@@ -161,6 +161,20 @@ const ANIME_CATEGORY_BASE: SearchCategory = {
 }
 
 export default function SearchPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-3xl border border-slate-100 bg-white/80 p-6 text-sm text-muted-foreground">
+          Loading search…
+        </div>
+      }
+    >
+      <SearchPageClient />
+    </Suspense>
+  )
+}
+
+function SearchPageClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()

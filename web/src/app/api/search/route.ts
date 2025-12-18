@@ -288,9 +288,9 @@ export async function GET(request: NextRequest) {
     const episodeCountById = new Map<number, number | null>()
     for (const item of details) {
       if ('runtimeMinutes' in item)
-        runtimeById.set(item.id, item.runtimeMinutes)
+        runtimeById.set(item.id, item.runtimeMinutes ?? null)
       if ('episodeCount' in item)
-        episodeCountById.set(item.id, item.episodeCount)
+        episodeCountById.set(item.id, item.episodeCount ?? null)
     }
 
     const items = results.map((entry) =>

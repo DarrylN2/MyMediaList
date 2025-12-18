@@ -3,6 +3,8 @@ import type { Media } from '@/types'
 
 const TMDB_API_BASE = 'https://api.themoviedb.org/3'
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500'
+const TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/w1280'
+const TMDB_GALLERY_BASE = 'https://image.tmdb.org/t/p/w780'
 const ANILIST_API_BASE = 'https://graphql.anilist.co'
 const DETAIL_ENDPOINTS = {
   movie: 'movie',
@@ -84,7 +86,7 @@ export async function GET(
   tmdbUrl.searchParams.set('language', 'en-US')
   tmdbUrl.searchParams.set(
     'append_to_response',
-    'credits,release_dates,content_ratings',
+    'credits,release_dates,content_ratings,images',
   )
   tmdbUrl.searchParams.set('api_key', apiKey)
 
@@ -235,6 +237,10 @@ interface TmdbCastMember {
   character?: string
 }
 
+interface TmdbImageList {
+  backdrops?: Array<{ file_path?: string | null } | null>
+}
+
 interface TmdbGenre {
   name?: string
 }
@@ -251,6 +257,7 @@ interface TmdbMovieDetail {
   release_date?: string
   runtime?: number
   poster_path?: string | null
+  backdrop_path?: string | null
   adult?: boolean
   genres?: TmdbGenre[]
   production_companies?: TmdbCompany[]
@@ -258,6 +265,7 @@ interface TmdbMovieDetail {
     cast?: TmdbCastMember[]
     crew?: TmdbCrewMember[]
   }
+  images?: TmdbImageList
   release_dates?: {
     results?: Array<{
       iso_3166_1: string
@@ -275,6 +283,7 @@ interface TmdbTvDetail {
   number_of_episodes?: number
   episode_run_time?: number[]
   poster_path?: string | null
+  backdrop_path?: string | null
   genres?: TmdbGenre[]
   production_companies?: TmdbCompany[]
   networks?: TmdbCompany[]
@@ -283,6 +292,7 @@ interface TmdbTvDetail {
     cast?: TmdbCastMember[]
     crew?: TmdbCrewMember[]
   }
+  images?: TmdbImageList
   content_ratings?: {
     results?: Array<{
       iso_3166_1: string
@@ -298,6 +308,20 @@ function mapMovieDetail(
   const crew = movie.credits?.crew ?? []
   const cast = movie.credits?.cast ?? []
 
+  const castMembers = cast
+    .slice(0, 10)
+    .map((member) => ({
+      name: member.name ?? '',
+      role: member.character || undefined,
+    }))
+    .filter((member) => Boolean(member.name))
+
+  const additionalImages = (movie.images?.backdrops ?? [])
+    .map((img) => img?.file_path ?? null)
+    .filter((path): path is string => Boolean(path))
+    .slice(0, 8)
+    .map((path) => `${TMDB_GALLERY_BASE}${path}`)
+
   return {
     id: params.id,
     type: 'movie',
@@ -308,6 +332,10 @@ function mapMovieDetail(
     posterUrl: movie.poster_path
       ? `${TMDB_IMAGE_BASE}${movie.poster_path}`
       : undefined,
+    backdropUrl: movie.backdrop_path
+      ? `${TMDB_BACKDROP_BASE}${movie.backdrop_path}`
+      : undefined,
+    additionalImages,
     provider: 'tmdb',
     providerId: String(movie.id),
     description: movie.overview,
@@ -317,10 +345,8 @@ function mapMovieDetail(
     writers: extractPeopleByJob(crew, ['Screenplay', 'Writer', 'Story'])
       .concat(extractPeopleByJob(crew, ['Author']))
       .filter(Boolean),
-    cast: cast
-      .slice(0, 10)
-      .map((member) => member.name)
-      .filter(Boolean) as string[],
+    castMembers,
+    cast: castMembers.map((member) => member.name),
     studios: (movie.production_companies ?? [])
       .map((company) => company.name)
       .filter(Boolean) as string[],
@@ -338,6 +364,20 @@ function mapTvDetail(
   const cast = show.credits?.cast ?? []
   const creators = show.created_by ?? []
 
+  const castMembers = cast
+    .slice(0, 10)
+    .map((member) => ({
+      name: member.name ?? '',
+      role: member.character || undefined,
+    }))
+    .filter((member) => Boolean(member.name))
+
+  const additionalImages = (show.images?.backdrops ?? [])
+    .map((img) => img?.file_path ?? null)
+    .filter((path): path is string => Boolean(path))
+    .slice(0, 8)
+    .map((path) => `${TMDB_GALLERY_BASE}${path}`)
+
   return {
     id: params.id,
     type: 'tv',
@@ -348,6 +388,10 @@ function mapTvDetail(
     posterUrl: show.poster_path
       ? `${TMDB_IMAGE_BASE}${show.poster_path}`
       : undefined,
+    backdropUrl: show.backdrop_path
+      ? `${TMDB_BACKDROP_BASE}${show.backdrop_path}`
+      : undefined,
+    additionalImages,
     provider: 'tmdb',
     providerId: String(show.id),
     description: show.overview,
@@ -358,10 +402,8 @@ function mapTvDetail(
       creators.map((creator) => creator.name).filter(Boolean) as string[],
     ),
     writers: extractPeopleByJob(crew, ['Writer', 'Screenplay', 'Story']),
-    cast: cast
-      .slice(0, 10)
-      .map((member) => member.name)
-      .filter(Boolean) as string[],
+    castMembers,
+    cast: castMembers.map((member) => member.name),
     studios: (show.production_companies ?? [])
       .concat(show.networks ?? [])
       .map((company) => company.name)

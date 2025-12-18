@@ -16,6 +16,8 @@ export interface Media {
   title: string
   year?: number
   posterUrl?: string
+  backdropUrl?: string
+  additionalImages?: string[]
   provider: MediaProvider
   providerId: string
   description?: string
@@ -25,6 +27,7 @@ export interface Media {
   directors?: string[]
   writers?: string[]
   cast?: string[]
+  castMembers?: Array<{ name: string; role?: string }>
   studios?: string[]
   genres?: string[]
 }

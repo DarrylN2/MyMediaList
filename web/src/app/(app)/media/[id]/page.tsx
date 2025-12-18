@@ -3,12 +3,14 @@
 import { useState, useEffect } from 'react'
 import { use } from 'react'
 import Image from 'next/image'
+import { Building2, Clock, Tags, Tv, Users } from 'lucide-react'
 import { RatingStars } from '@/components/RatingStars'
 import { StatusSelect } from '@/components/StatusSelect'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useAuth } from '@/context/AuthContext'
 import { toast } from 'sonner'
 import type { EntryStatus, Media } from '@/types'
@@ -35,6 +37,7 @@ export default function MediaDetailPage({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
   useEffect(() => {
     const parsed = parseMediaRouteId(id)
@@ -159,37 +162,6 @@ export default function MediaDetailPage({
     )
   }
 
-  const metadataCards = [
-    media.durationMinutes && {
-      label: media.type === 'tv' ? 'Episode length' : 'Duration',
-      value: formatDuration(media.durationMinutes),
-    },
-    media.contentRating && {
-      label: 'Rating',
-      value: media.contentRating,
-    },
-    media.genres?.length && {
-      label: 'Genres',
-      value: media.genres.join(', '),
-    },
-    media.studios?.length && {
-      label: media.type === 'tv' ? 'Networks' : 'Studios',
-      value: media.studios.join(', '),
-    },
-  ].filter(Boolean) as { label: string; value: string }[]
-
-  const creativeSections = [
-    media.directors?.length && {
-      label: 'Directors / Creators',
-      people: media.directors,
-    },
-    media.writers?.length && {
-      label: 'Authors / Writers',
-      people: media.writers,
-    },
-    media.cast?.length && { label: 'Cast', people: media.cast },
-  ].filter(Boolean) as { label: string; people: string[] }[]
-
   const handleSaveEntry = async () => {
     if (!userId) {
       toast('Log in to save entries.')
@@ -258,147 +230,368 @@ export default function MediaDetailPage({
       ? media.type
       : 'movie'
 
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-[300px_1fr]">
-        <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl">
-          {media.posterUrl ? (
-            <Image
-              src={media.posterUrl}
-              alt={media.title}
-              fill
-              className="object-cover"
-              sizes="300px"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center bg-muted">
-              <span className="text-muted-foreground">No poster</span>
-            </div>
-          )}
-        </div>
+  const castMembers = (media.castMembers ?? []).filter(
+    (member): member is { name: string; role?: string } =>
+      Boolean(member?.name),
+  )
+  const castFallback = (media.cast ?? [])
+    .filter(Boolean)
+    .map((name) => ({ name, role: undefined as string | undefined }))
+  const cast = (castMembers.length > 0 ? castMembers : castFallback).slice(
+    0,
+    10,
+  )
 
-        <div className="space-y-6">
-          <div>
-            <h1 className="mb-2 text-3xl font-bold">{media.title}</h1>
-            <div className="flex flex-wrap items-center gap-2">
-              {media.year && (
-                <span className="text-muted-foreground">{media.year}</span>
+  const galleryImages = (media.additionalImages ?? [])
+    .filter(Boolean)
+    .slice(0, 8)
+
+  const primaryDirectorOrCreator = (media.directors ?? []).filter(Boolean)[0]
+
+  return (
+    <div className="space-y-8">
+      {/* Hero section (backdrop + header content on top) */}
+      <div className="relative left-1/2 right-1/2 -mx-[50vw] -mt-6 w-screen overflow-hidden">
+        {/* Backdrop background */}
+        {media.backdropUrl ? (
+          <div className="absolute inset-0">
+            <div
+              className="absolute inset-0"
+              style={{
+                WebkitMaskImage:
+                  'linear-gradient(to bottom, black 0%, black 70%, transparent 100%)',
+                maskImage:
+                  'linear-gradient(to bottom, black 0%, black 70%, transparent 100%)',
+              }}
+            >
+              <Image
+                src={media.backdropUrl}
+                alt={`${media.title} backdrop`}
+                fill
+                className="object-cover"
+                sizes="100vw"
+                priority
+              />
+            </div>
+
+            {/* Light wash so text stays readable; fades out into page background */}
+            <div className="absolute inset-0 bg-gradient-to-b from-background/0 via-background/25 to-transparent" />
+          </div>
+        ) : null}
+
+        {/* Content aligned to main container */}
+        <div className="relative mx-auto max-w-7xl px-4 pt-10 pb-12">
+          <div className="grid gap-6 md:grid-cols-[300px_1fr]">
+            <div className="relative mx-auto w-full max-w-[300px] overflow-hidden rounded-2xl border bg-card shadow-sm aspect-[2/3] md:mx-0">
+              {media.posterUrl ? (
+                <Image
+                  src={media.posterUrl}
+                  alt={media.title}
+                  fill
+                  className="object-cover"
+                  sizes="300px"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center bg-muted">
+                  <span className="text-muted-foreground">No poster</span>
+                </div>
               )}
-              {media.type === 'tv' && media.episodeCount ? (
-                <span className="text-muted-foreground">
-                  • {media.episodeCount} eps
-                </span>
+            </div>
+
+            <div
+              className={
+                media.backdropUrl
+                  ? 'flex flex-col justify-center gap-4 rounded-3xl bg-background/6 p-6 backdrop-blur-md'
+                  : 'flex flex-col justify-center gap-4'
+              }
+            >
+              <div>
+                <h1 className="text-4xl font-bold tracking-tight drop-shadow-md sm:text-5xl">
+                  {media.title}
+                </h1>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-foreground/75">
+                  <Badge variant="secondary" className="uppercase">
+                    {media.type}
+                  </Badge>
+                  {media.year ? (
+                    <Badge variant="outline">{media.year}</Badge>
+                  ) : null}
+                  {media.contentRating ? (
+                    <Badge variant="outline" className="tracking-wide">
+                      {media.contentRating}
+                    </Badge>
+                  ) : null}
+                  {media.type === 'tv' && media.episodeCount ? (
+                    <span>• {media.episodeCount} eps</span>
+                  ) : null}
+                </div>
+              </div>
+
+              {media.description ? (
+                <p className="max-w-3xl text-base leading-relaxed text-foreground/85">
+                  {media.description}
+                </p>
               ) : null}
-              <Badge className="uppercase">{media.type}</Badge>
-              {media.contentRating && (
-                <Badge variant="secondary" className="uppercase tracking-wide">
-                  {media.contentRating}
-                </Badge>
-              )}
             </div>
           </div>
-
-          {media.description && (
-            <p className="text-base text-muted-foreground">
-              {media.description}
-            </p>
-          )}
-
-          {metadataCards.length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {metadataCards.map((card) => (
-                <div
-                  key={card.label}
-                  className="rounded-2xl border border-slate-100 bg-white/70 p-4"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {card.label}
-                  </p>
-                  <p className="text-lg font-semibold">{card.value}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-semibold">Your Entry</h2>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium">Status</label>
-                <StatusSelect
-                  value={status}
-                  onChange={setStatus}
-                  mediaType={statusMediaType}
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium">Rating</label>
-                <RatingStars
-                  rating={rating}
-                  interactive
-                  onRatingChange={setRating}
-                  maxRating={10}
-                  size="lg"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium">Notes</label>
-                <Textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Add your thoughts..."
-                  rows={4}
-                />
-              </div>
-
-              <Button
-                className="w-full"
-                onClick={handleSaveEntry}
-                disabled={isSaving}
-              >
-                {isSaving
-                  ? 'Saving…'
-                  : user
-                    ? 'Save Changes'
-                    : 'Log in to save'}
-              </Button>
-              {!user && (
-                <p className="text-xs text-muted-foreground">
-                  Sign in to keep track of your progress.
-                </p>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </div>
 
-      {creativeSections.length > 0 && (
-        <Card>
-          <CardHeader>
-            <h2 className="text-lg font-semibold">Creative Team</h2>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-3">
-            {creativeSections.map((section) => (
-              <div key={section.label} className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">
-                  {section.label}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {section.people.map((person) => (
-                    <Badge key={person} variant="outline">
-                      {person}
-                    </Badge>
-                  ))}
+      {/* Main content */}
+      <div className="grid gap-8 lg:grid-cols-[1fr_420px]">
+        {/* Left column */}
+        <div className="space-y-8">
+          <Card>
+            <CardHeader>
+              <h2 className="text-lg font-semibold">Key Details</h2>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="flex items-start gap-3">
+                <Clock className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {media.type === 'tv' ? 'Episode length' : 'Runtime'}
+                  </div>
+                  <div className="text-base font-medium">
+                    {media.durationMinutes
+                      ? `${media.durationMinutes} minutes`
+                      : '—'}
+                  </div>
                 </div>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+
+              {media.type === 'tv' && media.episodeCount ? (
+                <div className="flex items-start gap-3">
+                  <Tv className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Episodes
+                    </div>
+                    <div className="text-base font-medium">
+                      {media.episodeCount} episodes
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="flex items-start gap-3">
+                <Tags className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <div className="flex-1">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Genres
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(media.genres ?? []).length > 0 ? (
+                      (media.genres ?? []).map((g) => (
+                        <Badge key={g} variant="outline">
+                          {g}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Building2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <div className="flex-1">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {media.type === 'tv' ? 'Networks' : 'Studios'}
+                  </div>
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    {(media.studios ?? []).length > 0
+                      ? (media.studios ?? []).join(', ')
+                      : '—'}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Users className="h-5 w-5 text-muted-foreground" />
+                Credits & Creative Team
+              </h2>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {primaryDirectorOrCreator ? (
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {media.type === 'movie' ? 'Director' : 'Creator'}
+                  </div>
+                  <div className="mt-1 text-sm">{primaryDirectorOrCreator}</div>
+                </div>
+              ) : null}
+
+              {(media.writers ?? []).length > 0 ? (
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {media.type === 'anime'
+                      ? 'Writers / Original Author'
+                      : 'Writers'}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(media.writers ?? []).map((w) => (
+                      <Badge key={w} variant="outline">
+                        {w}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {cast.length > 0 ? (
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Cast
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {cast.map((member) => (
+                      <div
+                        key={`${member.name}-${member.role ?? ''}`}
+                        className="flex items-start gap-3 rounded-2xl border bg-card/60 p-3"
+                      >
+                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                          <span className="text-sm font-semibold">
+                            {member.name.slice(0, 1).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">
+                            {member.name}
+                          </div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {member.role || '\u00A0'}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right column */}
+        <div className="space-y-8">
+          <div className="sticky top-24 space-y-8">
+            <Card>
+              <CardHeader>
+                <h2 className="text-lg font-semibold">Your Entry</h2>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium">
+                    Status
+                  </label>
+                  <StatusSelect
+                    value={status}
+                    onChange={setStatus}
+                    mediaType={statusMediaType}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium">
+                    Rating
+                  </label>
+                  <RatingStars
+                    rating={rating}
+                    interactive
+                    onRatingChange={setRating}
+                    maxRating={10}
+                    size="lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium">
+                    Notes
+                  </label>
+                  <Textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Add your thoughts..."
+                    rows={4}
+                  />
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={handleSaveEntry}
+                  disabled={isSaving}
+                >
+                  {isSaving
+                    ? 'Saving…'
+                    : user
+                      ? 'Save Changes'
+                      : 'Log in to save'}
+                </Button>
+                {!user ? (
+                  <p className="text-xs text-muted-foreground">
+                    Sign in to keep track of your progress.
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            {galleryImages.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <h2 className="text-lg font-semibold">Photos & Backdrops</h2>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-3">
+                    {galleryImages.map((src, index) => (
+                      <button
+                        key={`${src}-${index}`}
+                        type="button"
+                        onClick={() => setSelectedImage(src)}
+                        className="relative aspect-video overflow-hidden rounded-2xl border bg-muted transition hover:ring-2 hover:ring-ring"
+                        aria-label={`Open image ${index + 1}`}
+                      >
+                        <Image
+                          src={src}
+                          alt={`${media.title} image ${index + 1}`}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 1024px) 50vw, 25vw"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <Dialog
+        open={Boolean(selectedImage)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedImage(null)
+        }}
+      >
+        <DialogContent className="max-w-5xl p-2">
+          <div className="relative h-[70vh] w-full overflow-hidden rounded-xl bg-muted">
+            {selectedImage ? (
+              <Image
+                src={selectedImage}
+                alt={media.title}
+                fill
+                className="object-contain"
+                sizes="80vw"
+              />
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -441,18 +634,4 @@ function parseMediaRouteId(routeId: string): ParsedMediaId | null {
   }
 
   return { provider, type: 'movie', sourceId: parts.slice(1).join('-') }
-}
-
-function formatDuration(minutes?: number) {
-  if (!minutes) {
-    return '—'
-  }
-
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = minutes % 60
-  if (hours === 0) {
-    return `${remainingMinutes} min`
-  }
-
-  return `${hours}h${remainingMinutes > 0 ? ` ${remainingMinutes}m` : ''}`
 }
