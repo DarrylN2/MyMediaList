@@ -231,22 +231,83 @@ export default function MediaDetailPage({
       : 'movie'
 
   const castMembers = (media.castMembers ?? []).filter(
-    (member): member is { name: string; role?: string } =>
-      Boolean(member?.name),
+    (
+      member,
+    ): member is {
+      id?: string
+      name: string
+      role?: string
+      imageUrl?: string
+    } => Boolean(member?.name),
   )
-  const castFallback = (media.cast ?? [])
-    .filter(Boolean)
-    .map((name) => ({ name, role: undefined as string | undefined }))
+  const castFallback = (media.cast ?? []).filter(Boolean).map((name) => ({
+    id: undefined,
+    name,
+    role: undefined as string | undefined,
+    imageUrl: undefined,
+  }))
   const cast = (castMembers.length > 0 ? castMembers : castFallback).slice(
     0,
-    10,
+    60,
   )
 
   const galleryImages = (media.additionalImages ?? [])
     .filter(Boolean)
     .slice(0, 8)
 
-  const primaryDirectorOrCreator = (media.directors ?? []).filter(Boolean)[0]
+  const creatorCredits =
+    (media.creatorCredits ?? [])
+      .filter((credit) => Boolean(credit?.name))
+      .map((credit) => ({
+        id: credit.id,
+        name: credit.name,
+        role: credit.role,
+        imageUrl: credit.imageUrl,
+      })) ?? []
+
+  const writerCredits =
+    (media.writerCredits ?? [])
+      .filter((credit) => Boolean(credit?.name))
+      .map((credit) => ({
+        id: credit.id,
+        name: credit.name,
+        role: credit.role,
+        imageUrl: credit.imageUrl,
+      })) ?? []
+
+  const producerCredits =
+    (media.producerCredits ?? [])
+      .filter((credit) => Boolean(credit?.name))
+      .map((credit) => ({
+        id: credit.id,
+        name: credit.name,
+        role: credit.role,
+        imageUrl: credit.imageUrl,
+      })) ?? []
+
+  const creatorFallback = (media.directors ?? [])
+    .filter(Boolean)
+    .map((name) => ({
+      id: undefined,
+      name,
+      role: media.type === 'movie' ? 'Director' : 'Creator',
+      imageUrl: undefined,
+    }))
+
+  const writerFallback = (media.writers ?? []).filter(Boolean).map((name) => ({
+    id: undefined,
+    name,
+    role: 'Writer',
+    imageUrl: undefined,
+  }))
+
+  const creators = (
+    creatorCredits.length > 0 ? creatorCredits : creatorFallback
+  ).slice(0, 12)
+  const writers = (
+    writerCredits.length > 0 ? writerCredits : writerFallback
+  ).slice(0, 30)
+  const producers = producerCredits.slice(0, 30)
 
   return (
     <div className="space-y-8">
@@ -418,29 +479,137 @@ export default function MediaDetailPage({
               </h2>
             </CardHeader>
             <CardContent className="space-y-6">
-              {primaryDirectorOrCreator ? (
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {media.type === 'movie' ? 'Director' : 'Creator'}
-                  </div>
-                  <div className="mt-1 text-sm">{primaryDirectorOrCreator}</div>
-                </div>
-              ) : null}
+              {creators.length > 0 ||
+              writers.length > 0 ||
+              producers.length > 0 ? (
+                <div className="space-y-6">
+                  {creators.length > 0 ? (
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {media.type === 'movie' ? 'Director' : 'Creator'}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        {creators.map((person) => (
+                          <div
+                            key={`${person.id ?? person.name}-${person.role ?? ''}`}
+                            className="flex items-center gap-3 rounded-full border bg-card/60 px-3 py-2"
+                          >
+                            <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-primary">
+                              {person.imageUrl ? (
+                                <Image
+                                  src={person.imageUrl}
+                                  alt={person.name}
+                                  fill
+                                  className="object-cover"
+                                  sizes="36px"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-primary-foreground">
+                                  <span className="text-sm font-semibold">
+                                    {person.name.slice(0, 1).toUpperCase()}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="max-w-[220px] truncate text-sm font-medium">
+                                {person.name}
+                              </div>
+                              <div className="max-w-[220px] truncate text-xs text-muted-foreground">
+                                {person.role ?? '\u00A0'}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
 
-              {(media.writers ?? []).length > 0 ? (
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {media.type === 'anime'
-                      ? 'Writers / Original Author'
-                      : 'Writers'}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(media.writers ?? []).map((w) => (
-                      <Badge key={w} variant="outline">
-                        {w}
-                      </Badge>
-                    ))}
-                  </div>
+                  {writers.length > 0 ? (
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {media.type === 'anime'
+                          ? 'Writers / Original Author'
+                          : 'Writers'}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        {writers.map((person) => (
+                          <div
+                            key={`${person.id ?? person.name}-${person.role ?? ''}`}
+                            className="flex items-center gap-3 rounded-full border bg-card/60 px-3 py-2"
+                          >
+                            <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-primary">
+                              {person.imageUrl ? (
+                                <Image
+                                  src={person.imageUrl}
+                                  alt={person.name}
+                                  fill
+                                  className="object-cover"
+                                  sizes="36px"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-primary-foreground">
+                                  <span className="text-sm font-semibold">
+                                    {person.name.slice(0, 1).toUpperCase()}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="max-w-[220px] truncate text-sm font-medium">
+                                {person.name}
+                              </div>
+                              <div className="max-w-[220px] truncate text-xs text-muted-foreground">
+                                {person.role ?? 'Writer'}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {producers.length > 0 ? (
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Producers
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        {producers.map((person) => (
+                          <div
+                            key={`${person.id ?? person.name}-${person.role ?? ''}`}
+                            className="flex items-center gap-3 rounded-full border bg-card/60 px-3 py-2"
+                          >
+                            <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-primary">
+                              {person.imageUrl ? (
+                                <Image
+                                  src={person.imageUrl}
+                                  alt={person.name}
+                                  fill
+                                  className="object-cover"
+                                  sizes="36px"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-primary-foreground">
+                                  <span className="text-sm font-semibold">
+                                    {person.name.slice(0, 1).toUpperCase()}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="max-w-[220px] truncate text-sm font-medium">
+                                {person.name}
+                              </div>
+                              <div className="max-w-[220px] truncate text-xs text-muted-foreground">
+                                {person.role ?? '\u00A0'}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -449,27 +618,41 @@ export default function MediaDetailPage({
                   <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Cast
                   </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    {cast.map((member) => (
-                      <div
-                        key={`${member.name}-${member.role ?? ''}`}
-                        className="flex items-start gap-3 rounded-2xl border bg-card/60 p-3"
-                      >
-                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                          <span className="text-sm font-semibold">
-                            {member.name.slice(0, 1).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium">
-                            {member.name}
+                  <div className="mt-3 max-h-[560px] overflow-y-auto pr-1">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {cast.map((member) => (
+                        <div
+                          key={`${member.id ?? member.name}-${member.role ?? ''}`}
+                          className="flex items-start gap-3 rounded-2xl border bg-card/60 p-3"
+                        >
+                          <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-primary">
+                            {member.imageUrl ? (
+                              <Image
+                                src={member.imageUrl}
+                                alt={member.name}
+                                fill
+                                className="object-cover"
+                                sizes="40px"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-primary-foreground">
+                                <span className="text-sm font-semibold">
+                                  {member.name.slice(0, 1).toUpperCase()}
+                                </span>
+                              </div>
+                            )}
                           </div>
-                          <div className="truncate text-xs text-muted-foreground">
-                            {member.role || '\u00A0'}
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium">
+                              {member.name}
+                            </div>
+                            <div className="truncate text-xs text-muted-foreground">
+                              {member.role || '\u00A0'}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
               ) : null}

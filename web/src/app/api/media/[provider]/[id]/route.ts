@@ -5,6 +5,7 @@ const TMDB_API_BASE = 'https://api.themoviedb.org/3'
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500'
 const TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/w1280'
 const TMDB_GALLERY_BASE = 'https://image.tmdb.org/t/p/w780'
+const TMDB_PROFILE_BASE = 'https://image.tmdb.org/t/p/w185'
 const ANILIST_API_BASE = 'https://graphql.anilist.co'
 const DETAIL_ENDPOINTS = {
   movie: 'movie',
@@ -142,6 +143,16 @@ interface AniListAnimeDetail {
   genres?: string[] | null
   coverImage?: { large?: string | null }
   studios?: { nodes?: Array<{ name?: string | null } | null> | null }
+  staff?: {
+    edges?: Array<{
+      role?: string | null
+      node?: {
+        id: number
+        name?: { full?: string | null } | null
+        image?: { large?: string | null } | null
+      } | null
+    } | null> | null
+  } | null
 }
 
 async function fetchAniListAnimeDetail(
@@ -161,6 +172,16 @@ async function fetchAniListAnimeDetail(
         genres
         coverImage { large }
         studios(isMain: true) { nodes { name } }
+        staff(perPage: 25) {
+          edges {
+            role
+            node {
+              id
+              name { full }
+              image { large }
+            }
+          }
+        }
       }
     }
   `
@@ -209,6 +230,49 @@ async function fetchAniListAnimeDetail(
 
   const genres = (detail.genres ?? []).filter(Boolean) as string[]
 
+  const staffEdges = detail.staff?.edges ?? []
+  const staffCredits = staffEdges
+    .map((edge) => {
+      const node = edge?.node ?? null
+      const name = node?.name?.full ?? undefined
+      if (!name) return null
+      const id = node?.id != null ? String(node.id) : undefined
+      const role = edge?.role ?? undefined
+      const imageUrl = node?.image?.large ?? undefined
+      return {
+        name,
+        ...(id ? { id } : {}),
+        ...(role ? { role } : {}),
+        ...(imageUrl ? { imageUrl } : {}),
+      }
+    })
+    .filter((credit): credit is NonNullable<typeof credit> => credit != null)
+
+  const roleContains = (role: string | undefined, fragments: string[]) => {
+    const value = (role ?? '').toLowerCase()
+    return fragments.some((fragment) => value.includes(fragment))
+  }
+
+  const creatorCredits = staffCredits.filter((credit) =>
+    roleContains(credit.role, ['director', 'creator']),
+  )
+
+  const writerCredits = staffCredits.filter((credit) =>
+    roleContains(credit.role, [
+      'writer',
+      'script',
+      'screenplay',
+      'story',
+      'series composition',
+      'composition',
+      'original',
+    ]),
+  )
+
+  const producerCredits = staffCredits.filter((credit) =>
+    roleContains(credit.role, ['producer', 'executive producer']),
+  )
+
   return {
     id: String(detail.id),
     type: 'anime',
@@ -222,6 +286,11 @@ async function fetchAniListAnimeDetail(
       Number.isFinite(detail.duration) && detail.duration != null
         ? (detail.duration as number)
         : undefined,
+    creatorCredits,
+    writerCredits,
+    producerCredits,
+    directors: creatorCredits.map((credit) => credit.name),
+    writers: writerCredits.map((credit) => credit.name),
     studios,
     genres,
   }
@@ -230,11 +299,15 @@ async function fetchAniListAnimeDetail(
 interface TmdbCrewMember {
   job?: string
   name?: string
+  id?: number
+  profile_path?: string | null
 }
 
 interface TmdbCastMember {
   name?: string
   character?: string
+  id?: number
+  profile_path?: string | null
 }
 
 interface TmdbImageList {
@@ -287,7 +360,11 @@ interface TmdbTvDetail {
   genres?: TmdbGenre[]
   production_companies?: TmdbCompany[]
   networks?: TmdbCompany[]
-  created_by?: Array<{ name?: string }>
+  created_by?: Array<{
+    id?: number
+    name?: string
+    profile_path?: string | null
+  }>
   credits?: {
     cast?: TmdbCastMember[]
     crew?: TmdbCrewMember[]
@@ -308,13 +385,51 @@ function mapMovieDetail(
   const crew = movie.credits?.crew ?? []
   const cast = movie.credits?.cast ?? []
 
+  const toProfileUrl = (path?: string | null) =>
+    path ? `${TMDB_PROFILE_BASE}${path}` : undefined
+
   const castMembers = cast
-    .slice(0, 10)
+    .filter((member) => Boolean(member?.name))
+    .slice(0, 60)
     .map((member) => ({
+      id: member.id != null ? String(member.id) : undefined,
       name: member.name ?? '',
       role: member.character || undefined,
+      imageUrl: toProfileUrl(member.profile_path),
     }))
     .filter((member) => Boolean(member.name))
+
+  const extractCrewCreditsByJob = (jobs: string[]) => {
+    const normalizedJobs = new Set(jobs.map((job) => job.toLowerCase()))
+    return crew
+      .filter(
+        (member) =>
+          member.job &&
+          normalizedJobs.has(member.job.toLowerCase()) &&
+          Boolean(member.name),
+      )
+      .map((member) => ({
+        id: member.id != null ? String(member.id) : undefined,
+        name: member.name ?? '',
+        role: member.job,
+        imageUrl: toProfileUrl(member.profile_path),
+      }))
+      .filter((member) => Boolean(member.name))
+  }
+
+  const creatorCredits = extractCrewCreditsByJob(['Director'])
+  const writerCredits = extractCrewCreditsByJob([
+    'Writer',
+    'Screenplay',
+    'Story',
+    'Author',
+  ])
+  const producerCredits = extractCrewCreditsByJob([
+    'Producer',
+    'Executive Producer',
+    'Co-Producer',
+    'Associate Producer',
+  ])
 
   const additionalImages = (movie.images?.backdrops ?? [])
     .map((img) => img?.file_path ?? null)
@@ -346,6 +461,9 @@ function mapMovieDetail(
       .concat(extractPeopleByJob(crew, ['Author']))
       .filter(Boolean),
     castMembers,
+    creatorCredits,
+    writerCredits,
+    producerCredits,
     cast: castMembers.map((member) => member.name),
     studios: (movie.production_companies ?? [])
       .map((company) => company.name)
@@ -364,13 +482,64 @@ function mapTvDetail(
   const cast = show.credits?.cast ?? []
   const creators = show.created_by ?? []
 
+  const toProfileUrl = (path?: string | null) =>
+    path ? `${TMDB_PROFILE_BASE}${path}` : undefined
+
   const castMembers = cast
-    .slice(0, 10)
+    .filter((member) => Boolean(member?.name))
+    .slice(0, 60)
     .map((member) => ({
+      id: member.id != null ? String(member.id) : undefined,
       name: member.name ?? '',
       role: member.character || undefined,
+      imageUrl: toProfileUrl(member.profile_path),
     }))
     .filter((member) => Boolean(member.name))
+
+  const extractCrewCreditsByJob = (jobs: string[]) => {
+    const normalizedJobs = new Set(jobs.map((job) => job.toLowerCase()))
+    return crew
+      .filter(
+        (member) =>
+          member.job &&
+          normalizedJobs.has(member.job.toLowerCase()) &&
+          Boolean(member.name),
+      )
+      .map((member) => ({
+        id: member.id != null ? String(member.id) : undefined,
+        name: member.name ?? '',
+        role: member.job,
+        imageUrl: toProfileUrl(member.profile_path),
+      }))
+      .filter((member) => Boolean(member.name))
+  }
+
+  const creatorCredits =
+    (creators ?? [])
+      .filter((creator) => Boolean(creator?.name))
+      .map((creator) => ({
+        id: creator.id != null ? String(creator.id) : undefined,
+        name: creator.name ?? '',
+        role: 'Creator',
+        imageUrl: toProfileUrl(creator.profile_path),
+      })) ?? []
+
+  const creatorCreditsFallback =
+    creatorCredits.length > 0
+      ? creatorCredits
+      : extractCrewCreditsByJob(['Director'])
+
+  const writerCredits = extractCrewCreditsByJob([
+    'Writer',
+    'Screenplay',
+    'Story',
+  ])
+  const producerCredits = extractCrewCreditsByJob([
+    'Producer',
+    'Executive Producer',
+    'Co-Producer',
+    'Associate Producer',
+  ])
 
   const additionalImages = (show.images?.backdrops ?? [])
     .map((img) => img?.file_path ?? null)
@@ -403,6 +572,9 @@ function mapTvDetail(
     ),
     writers: extractPeopleByJob(crew, ['Writer', 'Screenplay', 'Story']),
     castMembers,
+    creatorCredits: creatorCreditsFallback,
+    writerCredits,
+    producerCredits,
     cast: castMembers.map((member) => member.name),
     studios: (show.production_companies ?? [])
       .concat(show.networks ?? [])

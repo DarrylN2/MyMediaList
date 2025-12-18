@@ -10,6 +10,13 @@ export type EntryStatus =
 
 export type MediaProvider = 'tmdb' | 'anilist' | 'igdb' | 'spotify'
 
+export interface PersonCredit {
+  id?: string
+  name: string
+  role?: string
+  imageUrl?: string
+}
+
 export interface Media {
   id: string
   type: MediaType
@@ -27,7 +34,10 @@ export interface Media {
   directors?: string[]
   writers?: string[]
   cast?: string[]
-  castMembers?: Array<{ name: string; role?: string }>
+  castMembers?: PersonCredit[]
+  creatorCredits?: PersonCredit[]
+  writerCredits?: PersonCredit[]
+  producerCredits?: PersonCredit[]
   studios?: string[]
   genres?: string[]
 }
