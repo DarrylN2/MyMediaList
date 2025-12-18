@@ -223,6 +223,7 @@ export default function MediaDetailPage({
             description: media.description,
             year: media.year,
             durationMinutes: media.durationMinutes,
+            episodeCount: media.episodeCount,
             genres: media.genres,
           },
           entry: {
@@ -283,6 +284,11 @@ export default function MediaDetailPage({
               {media.year && (
                 <span className="text-muted-foreground">{media.year}</span>
               )}
+              {media.type === 'tv' && media.episodeCount ? (
+                <span className="text-muted-foreground">
+                  • {media.episodeCount} eps
+                </span>
+              ) : null}
               <Badge className="uppercase">{media.type}</Badge>
               {media.contentRating && (
                 <Badge variant="secondary" className="uppercase tracking-wide">

@@ -272,6 +272,7 @@ interface TmdbTvDetail {
   original_name?: string
   overview?: string
   first_air_date?: string
+  number_of_episodes?: number
   episode_run_time?: number[]
   poster_path?: string | null
   genres?: TmdbGenre[]
@@ -351,6 +352,7 @@ function mapTvDetail(
     providerId: String(show.id),
     description: show.overview,
     durationMinutes: show.episode_run_time?.[0],
+    episodeCount: show.number_of_episodes ?? undefined,
     contentRating: extractTvCertification(show.content_ratings),
     directors: extractPeopleByJob(crew, ['Director']).concat(
       creators.map((creator) => creator.name).filter(Boolean) as string[],

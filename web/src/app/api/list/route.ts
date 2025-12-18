@@ -16,6 +16,7 @@ interface PersistMediaPayload {
     description?: string
     year?: number
     durationMinutes?: number
+    episodeCount?: number
     genres?: string[]
     directors?: string[]
     writers?: string[]
@@ -86,8 +87,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const entry = await upsertMediaEntry(payload)
-    return NextResponse.json({ entry })
+    const result = await upsertMediaEntry(payload)
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Failed to upsert media entry', error)
     return NextResponse.json(
@@ -105,8 +106,8 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const entry = await upsertMediaEntry(payload)
-    return NextResponse.json({ entry })
+    const result = await upsertMediaEntry(payload)
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Failed to update media entry', error)
     return NextResponse.json(
@@ -153,9 +154,12 @@ async function upsertMediaEntry(payload: PersistMediaPayload) {
   }
 
   return {
-    status: entry.status as EntryStatus,
-    rating: entry.user_rating,
-    note: entry.note,
+    entry: {
+      status: entry.status as EntryStatus,
+      rating: entry.user_rating,
+      note: entry.note,
+    },
+    mediaMeta: mediaRow.metadata,
   }
 }
 
@@ -172,7 +176,7 @@ async function ensureMediaRow(
   )
   if (existing) {
     await patchMediaRowIfMissing(supabase, existing, resolvedMeta)
-    return existing
+    return { id: existing.id, metadata: resolvedMeta.metadata }
   }
 
   const { data, error } = await supabase
@@ -199,7 +203,7 @@ async function ensureMediaRow(
     throw error
   }
 
-  return data
+  return { id: data.id as string, metadata: resolvedMeta.metadata }
 }
 
 async function findMediaRow(
@@ -239,6 +243,11 @@ async function resolveMediaMetadata(
   cast: string[] | null
   metadata: Record<string, unknown> | null
 }> {
+  const episodeCount =
+    Number.isFinite(media.episodeCount) && media.episodeCount != null
+      ? (media.episodeCount as number)
+      : null
+
   const base = {
     year: Number.isFinite(media.year) ? (media.year as number) : null,
     durationMinutes: Number.isFinite(media.durationMinutes)
@@ -377,7 +386,8 @@ async function resolveMediaMetadata(
     base.genres == null ||
     base.directors == null ||
     base.writers == null ||
-    base.cast == null
+    base.cast == null ||
+    (media.type === 'tv' && episodeCount == null)
   if (!needsFetch) {
     return {
       ...base,
@@ -386,6 +396,7 @@ async function resolveMediaMetadata(
         providerId: media.providerId,
         year: base.year,
         durationMinutes: base.durationMinutes,
+        ...(media.type === 'tv' ? { episodeCount } : {}),
         genres: base.genres,
         directors: base.directors,
         writers: base.writers,
@@ -411,6 +422,7 @@ async function resolveMediaMetadata(
       first_air_date?: string
       runtime?: number
       episode_run_time?: number[]
+      number_of_episodes?: number
       genres?: Array<{ name?: string }>
       credits?: {
         cast?: Array<{ name?: string }>
@@ -464,6 +476,15 @@ async function resolveMediaMetadata(
         .map((member) => member.name)
         .filter(Boolean) as string[])
 
+    const resolvedEpisodeCount =
+      media.type === 'tv'
+        ? (episodeCount ??
+          (Number.isFinite(data.number_of_episodes) &&
+          data.number_of_episodes != null
+            ? Math.max(0, Math.round(data.number_of_episodes))
+            : null))
+        : null
+
     return {
       year: Number.isFinite(year) ? (year as number) : null,
       durationMinutes:
@@ -479,6 +500,7 @@ async function resolveMediaMetadata(
         providerId: media.providerId,
         year,
         durationMinutes,
+        ...(media.type === 'tv' ? { episodeCount: resolvedEpisodeCount } : {}),
         genres,
         directors,
         writers,
@@ -488,6 +510,10 @@ async function resolveMediaMetadata(
   } catch {
     return { ...base, metadata: null }
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value != null && !Array.isArray(value)
 }
 
 async function patchMediaRowIfMissing(
@@ -531,6 +557,22 @@ async function patchMediaRowIfMissing(
   }
   if (row.metadata == null && resolved.metadata != null) {
     update.metadata = resolved.metadata
+  }
+
+  const resolvedEpisodeCount =
+    isRecord(resolved.metadata) &&
+    typeof resolved.metadata.episodeCount === 'number'
+      ? resolved.metadata.episodeCount
+      : null
+  const existingEpisodeCount =
+    isRecord(row.metadata) && typeof row.metadata.episodeCount === 'number'
+      ? row.metadata.episodeCount
+      : null
+
+  if (existingEpisodeCount == null && resolvedEpisodeCount != null) {
+    update.metadata = isRecord(row.metadata)
+      ? { ...row.metadata, episodeCount: resolvedEpisodeCount }
+      : { ...(resolved.metadata ?? {}), episodeCount: resolvedEpisodeCount }
   }
 
   if (Object.keys(update).length === 0) return

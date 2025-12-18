@@ -63,6 +63,7 @@ type RatedItem = {
   description: string | null
   year: number | null
   durationMinutes: number | null
+  episodeCount: number | null
   genres: string[] | null
   directors: string[] | null
   writers: string[] | null
@@ -330,6 +331,7 @@ export default function ListsPage() {
               providerId: string
               year: number | null
               durationMinutes: number | null
+              episodeCount: number | null
               genres: string[] | null
               directors: string[] | null
               writers: string[] | null
@@ -352,6 +354,7 @@ export default function ListsPage() {
               description: item.media.description ?? null,
               year: item.media.year ?? null,
               durationMinutes: item.media.durationMinutes ?? null,
+              episodeCount: item.media.episodeCount ?? null,
               genres: item.media.genres ?? null,
               directors: item.media.directors ?? null,
               writers: item.media.writers ?? null,
@@ -977,6 +980,7 @@ export default function ListsPage() {
                       synopsis={item.description ?? null}
                       year={item.year ?? undefined}
                       runtimeMinutes={item.durationMinutes ?? undefined}
+                      episodeCount={item.episodeCount ?? null}
                       genres={item.genres ?? undefined}
                       directors={item.directors ?? undefined}
                       writers={item.writers ?? undefined}
@@ -1059,6 +1063,7 @@ export default function ListsPage() {
                     synopsis={item.description ?? null}
                     year={item.year ?? undefined}
                     runtimeMinutes={item.durationMinutes ?? undefined}
+                    episodeCount={item.episodeCount ?? null}
                     genres={item.genres ?? undefined}
                     directors={item.directors ?? undefined}
                     writers={item.writers ?? undefined}
@@ -1140,6 +1145,7 @@ export default function ListsPage() {
                     synopsis={item.description ?? null}
                     year={item.year ?? undefined}
                     runtimeMinutes={item.durationMinutes ?? undefined}
+                    episodeCount={item.episodeCount ?? null}
                     genres={item.genres ?? undefined}
                     directors={item.directors ?? undefined}
                     writers={item.writers ?? undefined}

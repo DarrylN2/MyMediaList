@@ -45,6 +45,7 @@ export interface MediaListItemProps {
   synopsis?: string | null
   year?: number
   runtimeMinutes?: number
+  episodeCount?: number | null
   genres?: string[] | null
   directors?: string[] | null
   writers?: string[] | null
@@ -102,6 +103,7 @@ export function MediaListItem({
   synopsis,
   year,
   runtimeMinutes,
+  episodeCount,
   genres,
   directors,
   writers,
@@ -300,8 +302,13 @@ export function MediaListItem({
 
   const metaSuffixParts: string[] = []
   if (year != null) metaSuffixParts.push(String(year))
-  if (runtimeMinutes != null)
+  if (type === 'tv') {
+    if (episodeCount != null && episodeCount > 0) {
+      metaSuffixParts.push(`${episodeCount} eps`)
+    }
+  } else if (runtimeMinutes != null) {
     metaSuffixParts.push(formatDuration(runtimeMinutes))
+  }
   const metaSuffix = metaSuffixParts.join(' • ')
 
   const renderPeopleLine = (label: string, people?: string[] | null) => {
@@ -388,7 +395,13 @@ export function MediaListItem({
         </div>
 
         <div className="text-center text-sm text-muted-foreground">
-          {runtimeMinutes != null ? formatDuration(runtimeMinutes) : '—'}
+          {type === 'tv'
+            ? episodeCount != null && episodeCount > 0
+              ? `${episodeCount} eps`
+              : '—'
+            : runtimeMinutes != null
+              ? formatDuration(runtimeMinutes)
+              : '—'}
         </div>
 
         <div className="flex justify-center">{statusNode}</div>

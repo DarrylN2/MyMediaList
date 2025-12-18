@@ -83,6 +83,22 @@ function buildMediaRouteId(media: {
 type ViewMode = 'detailed' | 'grid' | 'compact'
 type SortOption = 'addedAt' | 'title' | 'type'
 
+function getEpisodeCount(metadata: unknown): number | null {
+  if (
+    metadata == null ||
+    typeof metadata !== 'object' ||
+    Array.isArray(metadata)
+  ) {
+    return null
+  }
+  const value = (metadata as Record<string, unknown>).episodeCount
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value != null && !Array.isArray(value)
+}
+
 export function SupabaseListDetailClient({ listId }: { listId: string }) {
   const { user } = useAuth()
   const [list, setList] = useState<ListDetail | null>(null)
@@ -193,6 +209,38 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
     return sorted
   }, [items, query, sortBy, sortDirection, typeFilter])
 
+  const mergeEpisodeCountForMedia = (mediaId: string, episodeCount: number) => {
+    setItems((prev) =>
+      prev.map((row) => {
+        const media = Array.isArray(row.media_items)
+          ? row.media_items[0]
+          : row.media_items
+        if (!media || media.id !== mediaId) return row
+
+        const patchOne = (
+          current: NonNullable<
+            Exclude<ListItem['media_items'], Array<unknown>>
+          >,
+        ) => {
+          const existingMeta = isRecord(current.metadata)
+            ? current.metadata
+            : {}
+          if (typeof existingMeta.episodeCount === 'number') return current
+          return { ...current, metadata: { ...existingMeta, episodeCount } }
+        }
+
+        return {
+          ...row,
+          media_items: Array.isArray(row.media_items)
+            ? row.media_items.map((item) =>
+                item.id === mediaId ? patchOne(item) : item,
+              )
+            : patchOne(row.media_items),
+        }
+      }),
+    )
+  }
+
   const renderView = () => {
     if (processedItems.length === 0) {
       return (
@@ -227,6 +275,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                 synopsis={entry.media.description}
                 year={entry.media.year ?? undefined}
                 runtimeMinutes={entry.media.duration_minutes ?? undefined}
+                episodeCount={getEpisodeCount(entry.media.metadata)}
                 genres={entry.media.genres ?? undefined}
                 directors={entry.media.directors ?? undefined}
                 writers={entry.media.writers ?? undefined}
@@ -261,7 +310,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       }
                     }),
                   )
-                  await fetch('/api/list', {
+                  const res = await fetch('/api/list', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -273,10 +322,24 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                         title: entry.media.title,
                         posterUrl: entry.media.poster_url ?? undefined,
                         description: entry.media.description ?? undefined,
+                        episodeCount:
+                          getEpisodeCount(entry.media.metadata) ?? undefined,
                       },
                       entry: { status: next },
                     }),
                   })
+                  if (res.ok) {
+                    const payload = (await res.json().catch(() => null)) as {
+                      mediaMeta?: { episodeCount?: unknown } | null
+                    } | null
+                    const episodeCount =
+                      typeof payload?.mediaMeta?.episodeCount === 'number'
+                        ? payload.mediaMeta.episodeCount
+                        : null
+                    if (episodeCount != null) {
+                      mergeEpisodeCountForMedia(entry.media.id, episodeCount)
+                    }
+                  }
                 }}
                 onChangeRating={async (next) => {
                   if (!user?.email) return
@@ -303,7 +366,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       }
                     }),
                   )
-                  await fetch('/api/list', {
+                  const res = await fetch('/api/list', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -315,10 +378,24 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                         title: entry.media.title,
                         posterUrl: entry.media.poster_url ?? undefined,
                         description: entry.media.description ?? undefined,
+                        episodeCount:
+                          getEpisodeCount(entry.media.metadata) ?? undefined,
                       },
                       entry: { rating: next },
                     }),
                   })
+                  if (res.ok) {
+                    const payload = (await res.json().catch(() => null)) as {
+                      mediaMeta?: { episodeCount?: unknown } | null
+                    } | null
+                    const episodeCount =
+                      typeof payload?.mediaMeta?.episodeCount === 'number'
+                        ? payload.mediaMeta.episodeCount
+                        : null
+                    if (episodeCount != null) {
+                      mergeEpisodeCountForMedia(entry.media.id, episodeCount)
+                    }
+                  }
                 }}
                 onSaveNote={async (next) => {
                   if (!user?.email) return
@@ -342,7 +419,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       }
                     }),
                   )
-                  await fetch('/api/list', {
+                  const res = await fetch('/api/list', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -354,10 +431,24 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                         title: entry.media.title,
                         posterUrl: entry.media.poster_url ?? undefined,
                         description: entry.media.description ?? undefined,
+                        episodeCount:
+                          getEpisodeCount(entry.media.metadata) ?? undefined,
                       },
                       entry: { note: next },
                     }),
                   })
+                  if (res.ok) {
+                    const payload = (await res.json().catch(() => null)) as {
+                      mediaMeta?: { episodeCount?: unknown } | null
+                    } | null
+                    const episodeCount =
+                      typeof payload?.mediaMeta?.episodeCount === 'number'
+                        ? payload.mediaMeta.episodeCount
+                        : null
+                    if (episodeCount != null) {
+                      mergeEpisodeCountForMedia(entry.media.id, episodeCount)
+                    }
+                  }
                 }}
               />
             ))}
@@ -380,6 +471,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
               synopsis={entry.media.description}
               year={entry.media.year ?? undefined}
               runtimeMinutes={entry.media.duration_minutes ?? undefined}
+              episodeCount={getEpisodeCount(entry.media.metadata)}
               genres={entry.media.genres ?? undefined}
               directors={entry.media.directors ?? undefined}
               writers={entry.media.writers ?? undefined}
@@ -414,7 +506,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                     }
                   }),
                 )
-                await fetch('/api/list', {
+                const res = await fetch('/api/list', {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -426,10 +518,24 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       title: entry.media.title,
                       posterUrl: entry.media.poster_url ?? undefined,
                       description: entry.media.description ?? undefined,
+                      episodeCount:
+                        getEpisodeCount(entry.media.metadata) ?? undefined,
                     },
                     entry: { status: next },
                   }),
                 })
+                if (res.ok) {
+                  const payload = (await res.json().catch(() => null)) as {
+                    mediaMeta?: { episodeCount?: unknown } | null
+                  } | null
+                  const episodeCount =
+                    typeof payload?.mediaMeta?.episodeCount === 'number'
+                      ? payload.mediaMeta.episodeCount
+                      : null
+                  if (episodeCount != null) {
+                    mergeEpisodeCountForMedia(entry.media.id, episodeCount)
+                  }
+                }
               }}
               onChangeRating={async (next) => {
                 if (!user?.email) return
@@ -456,7 +562,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                     }
                   }),
                 )
-                await fetch('/api/list', {
+                const res = await fetch('/api/list', {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -468,10 +574,24 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       title: entry.media.title,
                       posterUrl: entry.media.poster_url ?? undefined,
                       description: entry.media.description ?? undefined,
+                      episodeCount:
+                        getEpisodeCount(entry.media.metadata) ?? undefined,
                     },
                     entry: { rating: next },
                   }),
                 })
+                if (res.ok) {
+                  const payload = (await res.json().catch(() => null)) as {
+                    mediaMeta?: { episodeCount?: unknown } | null
+                  } | null
+                  const episodeCount =
+                    typeof payload?.mediaMeta?.episodeCount === 'number'
+                      ? payload.mediaMeta.episodeCount
+                      : null
+                  if (episodeCount != null) {
+                    mergeEpisodeCountForMedia(entry.media.id, episodeCount)
+                  }
+                }
               }}
               onSaveNote={async (next) => {
                 if (!user?.email) return
@@ -495,7 +615,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                     }
                   }),
                 )
-                await fetch('/api/list', {
+                const res = await fetch('/api/list', {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -507,10 +627,24 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       title: entry.media.title,
                       posterUrl: entry.media.poster_url ?? undefined,
                       description: entry.media.description ?? undefined,
+                      episodeCount:
+                        getEpisodeCount(entry.media.metadata) ?? undefined,
                     },
                     entry: { note: next },
                   }),
                 })
+                if (res.ok) {
+                  const payload = (await res.json().catch(() => null)) as {
+                    mediaMeta?: { episodeCount?: unknown } | null
+                  } | null
+                  const episodeCount =
+                    typeof payload?.mediaMeta?.episodeCount === 'number'
+                      ? payload.mediaMeta.episodeCount
+                      : null
+                  if (episodeCount != null) {
+                    mergeEpisodeCountForMedia(entry.media.id, episodeCount)
+                  }
+                }
               }}
             />
           ))}
@@ -532,6 +666,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
             synopsis={entry.media.description}
             year={entry.media.year ?? undefined}
             runtimeMinutes={entry.media.duration_minutes ?? undefined}
+            episodeCount={getEpisodeCount(entry.media.metadata)}
             genres={entry.media.genres ?? undefined}
             directors={entry.media.directors ?? undefined}
             writers={entry.media.writers ?? undefined}
@@ -566,7 +701,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                   }
                 }),
               )
-              await fetch('/api/list', {
+              const res = await fetch('/api/list', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -578,10 +713,24 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                     title: entry.media.title,
                     posterUrl: entry.media.poster_url ?? undefined,
                     description: entry.media.description ?? undefined,
+                    episodeCount:
+                      getEpisodeCount(entry.media.metadata) ?? undefined,
                   },
                   entry: { status: next },
                 }),
               })
+              if (res.ok) {
+                const payload = (await res.json().catch(() => null)) as {
+                  mediaMeta?: { episodeCount?: unknown } | null
+                } | null
+                const episodeCount =
+                  typeof payload?.mediaMeta?.episodeCount === 'number'
+                    ? payload.mediaMeta.episodeCount
+                    : null
+                if (episodeCount != null) {
+                  mergeEpisodeCountForMedia(entry.media.id, episodeCount)
+                }
+              }
             }}
             onChangeRating={async (next) => {
               if (!user?.email) return
@@ -608,7 +757,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                   }
                 }),
               )
-              await fetch('/api/list', {
+              const res = await fetch('/api/list', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -620,10 +769,24 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                     title: entry.media.title,
                     posterUrl: entry.media.poster_url ?? undefined,
                     description: entry.media.description ?? undefined,
+                    episodeCount:
+                      getEpisodeCount(entry.media.metadata) ?? undefined,
                   },
                   entry: { rating: next },
                 }),
               })
+              if (res.ok) {
+                const payload = (await res.json().catch(() => null)) as {
+                  mediaMeta?: { episodeCount?: unknown } | null
+                } | null
+                const episodeCount =
+                  typeof payload?.mediaMeta?.episodeCount === 'number'
+                    ? payload.mediaMeta.episodeCount
+                    : null
+                if (episodeCount != null) {
+                  mergeEpisodeCountForMedia(entry.media.id, episodeCount)
+                }
+              }
             }}
             onSaveNote={async (next) => {
               if (!user?.email) return
@@ -647,7 +810,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                   }
                 }),
               )
-              await fetch('/api/list', {
+              const res = await fetch('/api/list', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -659,10 +822,24 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                     title: entry.media.title,
                     posterUrl: entry.media.poster_url ?? undefined,
                     description: entry.media.description ?? undefined,
+                    episodeCount:
+                      getEpisodeCount(entry.media.metadata) ?? undefined,
                   },
                   entry: { note: next },
                 }),
               })
+              if (res.ok) {
+                const payload = (await res.json().catch(() => null)) as {
+                  mediaMeta?: { episodeCount?: unknown } | null
+                } | null
+                const episodeCount =
+                  typeof payload?.mediaMeta?.episodeCount === 'number'
+                    ? payload.mediaMeta.episodeCount
+                    : null
+                if (episodeCount != null) {
+                  mergeEpisodeCountForMedia(entry.media.id, episodeCount)
+                }
+              }
             }}
           />
         ))}

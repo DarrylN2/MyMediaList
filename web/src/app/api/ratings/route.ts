@@ -17,11 +17,24 @@ type RatedEntry = {
     providerId: string
     year: number | null
     durationMinutes: number | null
+    episodeCount: number | null
     genres: string[] | null
     directors: string[] | null
     writers: string[] | null
     cast: string[] | null
   }
+}
+
+function getEpisodeCount(metadata: unknown): number | null {
+  if (
+    metadata == null ||
+    typeof metadata !== 'object' ||
+    Array.isArray(metadata)
+  ) {
+    return null
+  }
+  const value = (metadata as Record<string, unknown>).episodeCount
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
 export async function GET(request: NextRequest) {
@@ -53,6 +66,7 @@ export async function GET(request: NextRequest) {
             source_id,
             year,
             duration_minutes,
+            metadata,
             genres,
             directors,
             writers,
@@ -90,6 +104,7 @@ export async function GET(request: NextRequest) {
             providerId: media.source_id as string,
             year: (media.year as number | null) ?? null,
             durationMinutes: (media.duration_minutes as number | null) ?? null,
+            episodeCount: getEpisodeCount(media.metadata),
             genres: (media.genres as string[] | null) ?? null,
             directors: (media.directors as string[] | null) ?? null,
             writers: (media.writers as string[] | null) ?? null,

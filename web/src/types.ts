@@ -20,6 +20,7 @@ export interface Media {
   providerId: string
   description?: string
   durationMinutes?: number
+  episodeCount?: number
   contentRating?: string
   directors?: string[]
   writers?: string[]
