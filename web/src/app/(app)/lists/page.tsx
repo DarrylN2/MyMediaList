@@ -98,6 +98,9 @@ function buildMediaRouteId(media: {
     if (media.type === 'tv') return `tmdb-tv-${media.providerId}`
     return `tmdb-${media.providerId}`
   }
+  if (media.provider === 'anilist') {
+    return `anilist-anime-${media.providerId}`
+  }
   return `${media.provider}-${media.providerId}`
 }
 
