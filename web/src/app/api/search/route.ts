@@ -197,6 +197,12 @@ interface SearchResultItem {
   type: MediaType
   provider: MediaProvider
   providerId: string
+  externalUrl?: string
+  artist?: string
+  album?: string
+  year?: number
+  durationSeconds?: number
+  explicit?: boolean
 }
 
 export async function GET(request: NextRequest) {
@@ -585,6 +591,7 @@ interface SpotifyTrackSummary {
   duration_ms?: number
   explicit?: boolean
   artists?: SpotifyArtist[]
+  external_urls?: { spotify?: string }
   album?: {
     name?: string
     release_date?: string
@@ -640,6 +647,13 @@ async function searchSpotifyTracks(query: string): Promise<SearchResultItem[]> {
       if (track.explicit) tags.push('Explicit')
 
       const providerId = `track-${track.id}`
+      const durationSeconds =
+        typeof track.duration_ms === 'number' &&
+        Number.isFinite(track.duration_ms) &&
+        track.duration_ms > 0
+          ? Math.max(1, Math.round(track.duration_ms / 1000))
+          : undefined
+
       return {
         id: `spotify-${providerId}`,
         title: track.name ?? 'Untitled',
@@ -649,6 +663,12 @@ async function searchSpotifyTracks(query: string): Promise<SearchResultItem[]> {
         type: 'song',
         provider: 'spotify',
         providerId,
+        externalUrl: track.external_urls?.spotify ?? undefined,
+        artist: artistLabel,
+        album: track.album?.name ?? undefined,
+        year: year ? Number(year) : undefined,
+        durationSeconds,
+        explicit: track.explicit ?? undefined,
       }
     })
 }

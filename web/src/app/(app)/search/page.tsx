@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/context/AuthContext'
 import type { EntryStatus, MediaProvider, MediaType } from '@/types'
+import { cn } from '@/lib/utils'
 import type { LucideIcon } from 'lucide-react'
 import {
   Clapperboard,
@@ -38,6 +39,7 @@ import {
   Music2,
   Search as SearchIcon,
   Sparkles,
+  Star,
   Tv,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -72,6 +74,12 @@ interface SearchResultItem {
   type: MediaType
   provider?: MediaProvider
   providerId?: string
+  externalUrl?: string
+  artist?: string
+  album?: string
+  year?: number
+  durationSeconds?: number
+  explicit?: boolean
 }
 
 interface SearchCategory {
@@ -181,6 +189,10 @@ function SearchPageClient() {
   const searchParams = useSearchParams()
   const { user } = useAuth()
   const [ratedKeys, setRatedKeys] = useState<Set<string>>(() => new Set())
+  const [ratedValues, setRatedValues] = useState<Map<string, number>>(
+    () => new Map(),
+  )
+  const [addedKeys, setAddedKeys] = useState<Set<string>>(() => new Set())
   const [activeFilter, setActiveFilter] = useState<CategoryFilter>(() =>
     parseCategoryFilter(searchParams.get('category')),
   )
@@ -224,6 +236,8 @@ function SearchPageClient() {
   useEffect(() => {
     if (!user?.email) {
       setRatedKeys(new Set())
+      setRatedValues(new Map())
+      setAddedKeys(new Set())
       return
     }
 
@@ -242,19 +256,30 @@ function SearchPageClient() {
 
         const payload = (await response.json()) as {
           items?: Array<{
+            rating?: number
             media?: { provider?: string; providerId?: string } | null
           }>
         }
 
         const next = new Set<string>()
+        const nextValues = new Map<string, number>()
         for (const item of payload.items ?? []) {
           const provider = item.media?.provider
           const providerId = item.media?.providerId
           if (provider && providerId) {
-            next.add(`${provider}:${providerId}`)
+            const key = `${provider}:${providerId}`
+            next.add(key)
+            const rating =
+              typeof item.rating === 'number' && Number.isFinite(item.rating)
+                ? item.rating
+                : null
+            if (rating !== null) {
+              nextValues.set(key, rating)
+            }
           }
         }
         setRatedKeys(next)
+        setRatedValues(nextValues)
       } catch (error) {
         if ((error as Error).name === 'AbortError') return
         console.error(error)
@@ -560,6 +585,11 @@ function SearchPageClient() {
       toast.success(
         `Added ${addItem.title} to "${lists.find((l) => l.id === listId)?.title ?? 'list'}".`,
       )
+      setAddedKeys((prev) => {
+        const next = new Set(prev)
+        next.add(`${addItem.provider}:${addItem.providerId}`)
+        return next
+      })
       setAddOpen(false)
     } catch (error) {
       console.error(error)
@@ -698,6 +728,13 @@ function SearchPageClient() {
         else next.delete(key)
         return next
       })
+      setRatedValues((prev) => {
+        const next = new Map(prev)
+        const key = `${rateItem.provider}:${rateItem.providerId}`
+        if (rateRating > 0) next.set(key, rateRating)
+        else next.delete(key)
+        return next
+      })
 
       toast.success(`Saved your rating for ${rateItem.title}.`)
       setRateOpen(false)
@@ -822,6 +859,8 @@ function SearchPageClient() {
               onSelect={handleSelect}
               onRate={handleRate}
               ratedKeys={ratedKeys}
+              ratedValues={ratedValues}
+              addedKeys={addedKeys}
             />
           ))}
         </div>
@@ -997,6 +1036,8 @@ interface SearchCategorySectionProps {
   onSelect: (item: SearchResultItem) => void
   onRate: (item: SearchResultItem) => void
   ratedKeys: Set<string>
+  ratedValues: Map<string, number>
+  addedKeys: Set<string>
 }
 
 function SearchCategorySection({
@@ -1005,6 +1046,8 @@ function SearchCategorySection({
   onSelect,
   onRate,
   ratedKeys,
+  ratedValues,
+  addedKeys,
 }: SearchCategorySectionProps) {
   return (
     <section className="space-y-4">
@@ -1024,22 +1067,247 @@ function SearchCategorySection({
         </Badge>
       </div>
 
-      <div className="space-y-4">
-        {category.items.map((item) => (
-          <SearchResultCard
-            key={item.id}
-            item={item}
-            onAdd={() => onAdd(item)}
-            onRate={() => onRate(item)}
-            onSelect={() => onSelect(item)}
-            isRated={
-              Boolean(item.provider && item.providerId) &&
-              ratedKeys.has(`${item.provider}:${item.providerId}`)
-            }
-          />
-        ))}
-      </div>
+      {category.id === 'tracks' ? (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {category.items.map((item) => {
+            const key =
+              item.provider && item.providerId
+                ? `${item.provider}:${item.providerId}`
+                : null
+            const isRated = Boolean(key && ratedKeys.has(key))
+            const ratingValue = key ? ratedValues.get(key) : undefined
+            const isAdded = Boolean(key && addedKeys.has(key))
+            return (
+              <TrackSearchResultCard
+                key={item.id}
+                item={item}
+                onAdd={() => onAdd(item)}
+                onRate={() => onRate(item)}
+                onSelect={() => onSelect(item)}
+                isRated={isRated}
+                ratingValue={ratingValue}
+                isAdded={isAdded}
+              />
+            )
+          })}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {category.items.map((item) => (
+            <SearchResultCard
+              key={item.id}
+              item={item}
+              onAdd={() => onAdd(item)}
+              onRate={() => onRate(item)}
+              onSelect={() => onSelect(item)}
+              isRated={
+                Boolean(item.provider && item.providerId) &&
+                ratedKeys.has(`${item.provider}:${item.providerId}`)
+              }
+            />
+          ))}
+        </div>
+      )}
     </section>
+  )
+}
+
+function formatDuration(seconds: number | undefined): string | null {
+  if (
+    typeof seconds !== 'number' ||
+    !Number.isFinite(seconds) ||
+    seconds <= 0
+  ) {
+    return null
+  }
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}:${String(secs).padStart(2, '0')}`
+}
+
+interface TrackSearchResultCardProps {
+  item: SearchResultItem
+  onAdd: () => void
+  onRate: () => void
+  onSelect: () => void
+  isRated: boolean
+  ratingValue?: number
+  isAdded: boolean
+}
+
+function TrackSearchResultCard({
+  item,
+  onAdd,
+  onRate,
+  isRated,
+  ratingValue,
+  isAdded,
+}: TrackSearchResultCardProps) {
+  const durationLabel = formatDuration(item.durationSeconds)
+  const yearLabel =
+    typeof item.year === 'number' && Number.isFinite(item.year)
+      ? item.year
+      : null
+
+  const artistLine = item.artist ?? item.subtitle
+  const tertiaryText = item.album
+    ? `${item.album}${yearLabel ? ` • ${yearLabel}` : ''}`
+    : yearLabel
+      ? String(yearLabel)
+      : ''
+
+  const ratedText =
+    typeof ratingValue === 'number' && Number.isFinite(ratingValue)
+      ? `★ ${Math.round(ratingValue)}/10`
+      : 'Rated'
+
+  const openInSpotify = () => {
+    if (!item.externalUrl) return
+    window.open(item.externalUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  return (
+    <article className="group relative flex items-center gap-3 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-within:ring-2 focus-within:ring-indigo-500/40 sm:gap-4 sm:p-4">
+      <div className="shrink-0">
+        {item.coverUrl ? (
+          <Image
+            src={item.coverUrl}
+            alt={`${item.title} artwork`}
+            width={64}
+            height={64}
+            className="h-14 w-14 rounded-lg border object-cover shadow-sm sm:h-16 sm:w-16"
+          />
+        ) : (
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg border bg-slate-50 text-indigo-600 shadow-sm sm:h-16 sm:w-16">
+            <Music2 className="h-7 w-7 opacity-50" strokeWidth={1.5} />
+          </div>
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1" data-card-content>
+        <div className="space-y-0.5">
+          <h3 className="truncate text-base font-semibold leading-tight">
+            {item.title}
+          </h3>
+          <p className="truncate text-sm text-muted-foreground">{artistLine}</p>
+          <p className="min-h-4 truncate text-xs text-muted-foreground/80">
+            {tertiaryText}
+          </p>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <Badge variant="secondary" className="rounded-full px-2 py-0 text-xs">
+            Track
+          </Badge>
+          {durationLabel && (
+            <Badge
+              variant="outline"
+              className="rounded-full border-dashed px-2 py-0 text-xs"
+            >
+              {durationLabel}
+            </Badge>
+          )}
+          {item.explicit && (
+            <Badge
+              variant="outline"
+              className="rounded-full border-rose-200 px-2 py-0 text-xs text-rose-600"
+            >
+              Explicit
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      <div className="shrink-0">
+        <div className="flex flex-col items-end gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="hidden h-9 w-36 rounded-full px-4 text-xs font-semibold sm:inline-flex"
+            onClick={(event) => {
+              event.stopPropagation()
+              onRate()
+            }}
+          >
+            {isRated ? ratedText : '☆ Rate'}
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="h-9 w-9 rounded-full sm:hidden"
+            aria-label={isRated ? ratedText : 'Rate track'}
+            onClick={(event) => {
+              event.stopPropagation()
+              onRate()
+            }}
+          >
+            <Star
+              className={cn(
+                'h-4 w-4',
+                isRated && 'fill-yellow-500 text-yellow-500',
+              )}
+            />
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant={isAdded ? 'outline' : 'default'}
+            className="hidden h-9 w-36 rounded-full px-4 text-xs font-semibold sm:inline-flex"
+            onClick={(event) => {
+              event.stopPropagation()
+              onAdd()
+            }}
+          >
+            {isAdded ? '+ Added' : '+ Add to list'}
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={isAdded ? 'outline' : 'default'}
+            className="h-9 w-9 rounded-full sm:hidden"
+            aria-label={isAdded ? 'Added to list' : 'Add to list'}
+            onClick={(event) => {
+              event.stopPropagation()
+              onAdd()
+            }}
+          >
+            <span className="text-base leading-none">+</span>
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={!item.externalUrl}
+            className="hidden h-9 w-36 rounded-full px-4 text-xs font-semibold sm:inline-flex"
+            onClick={(event) => {
+              event.stopPropagation()
+              openInSpotify()
+            }}
+          >
+            <Music2 className="h-4 w-4 text-emerald-600" />
+            Spotify
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            disabled={!item.externalUrl}
+            className="h-9 w-9 rounded-full sm:hidden"
+            aria-label="Open in Spotify"
+            onClick={(event) => {
+              event.stopPropagation()
+              openInSpotify()
+            }}
+          >
+            <Music2 className="h-4 w-4 text-emerald-600" />
+          </Button>
+        </div>
+      </div>
+    </article>
   )
 }
 
@@ -1132,7 +1400,7 @@ function SearchResultCard({
           }}
           className="w-full rounded-full text-sm font-semibold"
         >
-          {isRated ? 'Rated' : 'Rate'}
+          {isRated ? '★ Rated' : '☆ Rate'}
         </Button>
         <Button
           type="button"
@@ -1143,7 +1411,7 @@ function SearchResultCard({
           }}
           className="w-full rounded-full text-sm font-semibold"
         >
-          Add to list
+          + Add to list
         </Button>
       </div>
     </div>
