@@ -14,6 +14,7 @@ const getMediaTypeColor = (type: string) => {
     case 'anime':
       return 'bg-purple-100 text-purple-700 border-purple-300'
     case 'song':
+    case 'album':
       return 'bg-yellow-100 text-yellow-700 border-yellow-300'
     case 'game':
       return 'bg-green-100 text-green-700 border-green-300'

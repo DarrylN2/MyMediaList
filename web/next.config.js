@@ -24,6 +24,16 @@ const nextConfig = {
         hostname: 'images.igdb.com',
         pathname: '/igdb/image/upload/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'i.scdn.co',
+        pathname: '/image/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'mosaic.scdn.co',
+        pathname: '/**',
+      },
     ],
   },
 }

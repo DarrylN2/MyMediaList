@@ -883,7 +883,8 @@ export default function ListsPage() {
               <option value="tv">TV</option>
               <option value="anime">Anime</option>
               <option value="game">Games</option>
-              <option value="song">Songs</option>
+              <option value="song">Tracks</option>
+              <option value="album">Albums</option>
             </select>
             <select
               value={ratedStatus}

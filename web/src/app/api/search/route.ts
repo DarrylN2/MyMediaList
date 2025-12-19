@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import type { MediaProvider, MediaType } from '@/types'
+import { spotifyFetchJson } from '@/lib/spotify-server'
 
 const TMDB_API_BASE = 'https://api.themoviedb.org/3'
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500'
@@ -8,8 +10,14 @@ const TMDB_ENDPOINTS = {
   tv: 'search/tv',
 } as const
 type TmdbSearchType = keyof typeof TMDB_ENDPOINTS
-type SearchType = TmdbSearchType | 'anime'
-const SUPPORTED_TYPES = new Set<SearchType>(['movie', 'tv', 'anime'])
+type SearchType = TmdbSearchType | 'anime' | 'track' | 'album'
+const SUPPORTED_TYPES = new Set<SearchType>([
+  'movie',
+  'tv',
+  'anime',
+  'track',
+  'album',
+])
 const FALLBACK_TAG = 'Search'
 const TMDB_DETAIL_LIMIT = 10
 const TMDB_CACHE_TTL_MS = 1000 * 60 * 60 * 24 // 24h
@@ -186,8 +194,8 @@ interface SearchResultItem {
   description?: string
   coverUrl?: string
   tags: string[]
-  type: SearchType
-  provider: 'tmdb' | 'anilist'
+  type: MediaType
+  provider: MediaProvider
   providerId: string
 }
 
@@ -221,6 +229,22 @@ export async function GET(request: NextRequest) {
       console.error('AniList search error', error)
       return NextResponse.json(
         { error: 'Unexpected error while contacting AniList.' },
+        { status: 500 },
+      )
+    }
+  }
+
+  if (type === 'track' || type === 'album') {
+    try {
+      const items =
+        type === 'track'
+          ? await searchSpotifyTracks(query)
+          : await searchSpotifyAlbums(query)
+      return NextResponse.json<SearchResponse>({ query, type, items })
+    } catch (error) {
+      console.error('Spotify search error', error)
+      return NextResponse.json(
+        { error: 'Unexpected error while contacting Spotify.' },
         { status: 500 },
       )
     }
@@ -535,4 +559,134 @@ function mapTmdbTvToResult(
     provider: 'tmdb',
     providerId: String(show.id),
   }
+}
+
+interface SpotifyImage {
+  url?: string
+}
+
+interface SpotifyArtist {
+  name?: string
+}
+
+interface SpotifyAlbumSummary {
+  id: string
+  name?: string
+  release_date?: string
+  total_tracks?: number
+  album_type?: string
+  images?: SpotifyImage[]
+  artists?: SpotifyArtist[]
+}
+
+interface SpotifyTrackSummary {
+  id: string
+  name?: string
+  duration_ms?: number
+  explicit?: boolean
+  artists?: SpotifyArtist[]
+  album?: {
+    name?: string
+    release_date?: string
+    images?: SpotifyImage[]
+  }
+}
+
+interface SpotifySearchResponse {
+  tracks?: { items?: SpotifyTrackSummary[] }
+  albums?: { items?: SpotifyAlbumSummary[] }
+}
+
+function formatSpotifyYear(releaseDate?: string): string | undefined {
+  const year = releaseDate?.slice(0, 4)
+  return year && /^\d{4}$/.test(year) ? year : undefined
+}
+
+function formatTrackDurationTag(durationMs?: number): string | null {
+  if (
+    typeof durationMs !== 'number' ||
+    !Number.isFinite(durationMs) ||
+    durationMs <= 0
+  ) {
+    return null
+  }
+  const totalSeconds = Math.round(durationMs / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+async function searchSpotifyTracks(query: string): Promise<SearchResultItem[]> {
+  const url = new URL('https://api.spotify.com/v1/search')
+  url.searchParams.set('q', query)
+  url.searchParams.set('type', 'track')
+  url.searchParams.set('limit', '20')
+  url.searchParams.set('market', 'US')
+
+  const payload = await spotifyFetchJson<SpotifySearchResponse>(url.toString())
+  const tracks = payload.tracks?.items ?? []
+
+  return tracks
+    .filter((track) => Boolean(track?.id))
+    .map((track) => {
+      const artists = (track.artists ?? [])
+        .map((a) => a?.name)
+        .filter((v): v is string => Boolean(v))
+      const artistLabel = artists.length ? artists.join(', ') : 'Unknown artist'
+      const year = formatSpotifyYear(track.album?.release_date)
+      const durationTag = formatTrackDurationTag(track.duration_ms)
+      const tags = ['Spotify', 'Track']
+      if (durationTag) tags.push(durationTag)
+      if (track.explicit) tags.push('Explicit')
+
+      const providerId = `track-${track.id}`
+      return {
+        id: `spotify-${providerId}`,
+        title: track.name ?? 'Untitled',
+        subtitle: [artistLabel, year, 'Track'].filter(Boolean).join(' • '),
+        coverUrl: track.album?.images?.[0]?.url ?? undefined,
+        tags,
+        type: 'song',
+        provider: 'spotify',
+        providerId,
+      }
+    })
+}
+
+async function searchSpotifyAlbums(query: string): Promise<SearchResultItem[]> {
+  const url = new URL('https://api.spotify.com/v1/search')
+  url.searchParams.set('q', query)
+  url.searchParams.set('type', 'album')
+  url.searchParams.set('limit', '20')
+  url.searchParams.set('market', 'US')
+
+  const payload = await spotifyFetchJson<SpotifySearchResponse>(url.toString())
+  const albums = payload.albums?.items ?? []
+
+  return albums
+    .filter((album) => Boolean(album?.id))
+    .map((album) => {
+      const artists = (album.artists ?? [])
+        .map((a) => a?.name)
+        .filter((v): v is string => Boolean(v))
+      const artistLabel = artists.length ? artists.join(', ') : 'Unknown artist'
+      const year = formatSpotifyYear(album.release_date)
+
+      const tags = ['Spotify', 'Album']
+      if (typeof album.total_tracks === 'number' && album.total_tracks > 0) {
+        tags.push(`${album.total_tracks} tracks`)
+      }
+
+      const providerId = `album-${album.id}`
+      return {
+        id: `spotify-${providerId}`,
+        title: album.name ?? 'Untitled',
+        subtitle: [artistLabel, year, 'Album'].filter(Boolean).join(' • '),
+        coverUrl: album.images?.[0]?.url ?? undefined,
+        tags,
+        type: 'album',
+        provider: 'spotify',
+        providerId,
+      }
+    })
 }

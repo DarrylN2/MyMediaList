@@ -31,6 +31,7 @@ import type { EntryStatus, MediaProvider, MediaType } from '@/types'
 import type { LucideIcon } from 'lucide-react'
 import {
   Clapperboard,
+  Disc3,
   Filter,
   Gamepad2,
   Heart,
@@ -41,7 +42,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-type CategoryId = 'movies' | 'tv' | 'anime' | 'songs' | 'games'
+type CategoryId = 'movies' | 'tv' | 'anime' | 'tracks' | 'albums' | 'games'
 type CategoryFilter = 'all' | CategoryId
 
 function parseCategoryFilter(raw: string | null): CategoryFilter {
@@ -51,7 +52,8 @@ function parseCategoryFilter(raw: string | null): CategoryFilter {
     value === 'movies' ||
     value === 'tv' ||
     value === 'anime' ||
-    value === 'songs' ||
+    value === 'tracks' ||
+    value === 'albums' ||
     value === 'games'
   ) {
     return value
@@ -92,26 +94,11 @@ const typeIconMap: Record<MediaType, LucideIcon> = {
   tv: Tv,
   anime: Sparkles,
   song: Music2,
+  album: Disc3,
   game: Gamepad2,
 }
 
 const STATIC_COLLECTION: SearchCategory[] = [
-  {
-    id: 'songs',
-    title: 'Songs/Albums',
-    helper: 'Soundtracks and playlists from the series',
-    items: [
-      {
-        id: 'arcane-soundtrack',
-        title: 'Arcane: Season 1 Soundtrack',
-        subtitle: 'Various Artists • 2021 • Album',
-        description:
-          'Imagine Dragons, Bea Miller, Denzel Curry, and more Runeterra vibes.',
-        tags: ['34 tracks', 'Spotify'],
-        type: 'song',
-      },
-    ],
-  },
   {
     id: 'games',
     title: 'Games',
@@ -135,7 +122,8 @@ const CATEGORY_FILTERS: { id: CategoryFilter; label: string }[] = [
   { id: 'movies', label: 'Movies' },
   { id: 'tv', label: 'TV Shows' },
   { id: 'anime', label: 'Anime' },
-  { id: 'songs', label: 'Songs/Albums' },
+  { id: 'tracks', label: 'Tracks' },
+  { id: 'albums', label: 'Albums' },
   { id: 'games', label: 'Games' },
 ]
 
@@ -157,6 +145,20 @@ const ANIME_CATEGORY_BASE: SearchCategory = {
   id: 'anime',
   title: 'Anime',
   helper: 'Live data from AniList',
+  items: [],
+}
+
+const TRACKS_CATEGORY_BASE: SearchCategory = {
+  id: 'tracks',
+  title: 'Tracks',
+  helper: 'Live data from Spotify',
+  items: [],
+}
+
+const ALBUMS_CATEGORY_BASE: SearchCategory = {
+  id: 'albums',
+  title: 'Albums',
+  helper: 'Live data from Spotify',
   items: [],
 }
 
@@ -205,6 +207,10 @@ function SearchPageClient() {
   const [tvCategory, setTvCategory] = useState<SearchCategory>(TV_CATEGORY_BASE)
   const [animeCategory, setAnimeCategory] =
     useState<SearchCategory>(ANIME_CATEGORY_BASE)
+  const [tracksCategory, setTracksCategory] =
+    useState<SearchCategory>(TRACKS_CATEGORY_BASE)
+  const [albumsCategory, setAlbumsCategory] =
+    useState<SearchCategory>(ALBUMS_CATEGORY_BASE)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const paramQuery = searchParams.get('query') ?? ''
@@ -290,6 +296,8 @@ function SearchPageClient() {
       setMovieCategory(MOVIE_CATEGORY_BASE)
       setTvCategory(TV_CATEGORY_BASE)
       setAnimeCategory(ANIME_CATEGORY_BASE)
+      setTracksCategory(TRACKS_CATEGORY_BASE)
+      setAlbumsCategory(ALBUMS_CATEGORY_BASE)
       setError(null)
       setIsLoading(false)
       return
@@ -299,10 +307,14 @@ function SearchPageClient() {
     setMovieCategory(MOVIE_CATEGORY_BASE)
     setTvCategory(TV_CATEGORY_BASE)
     setAnimeCategory(ANIME_CATEGORY_BASE)
+    setTracksCategory(TRACKS_CATEGORY_BASE)
+    setAlbumsCategory(ALBUMS_CATEGORY_BASE)
     setIsLoading(true)
     setError(null)
 
-    const fetchCategory = async (categoryType: 'movie' | 'tv' | 'anime') => {
+    const fetchCategory = async (
+      categoryType: 'movie' | 'tv' | 'anime' | 'track' | 'album',
+    ) => {
       try {
         const response = await fetch(
           `/api/search?type=${categoryType}&query=${encodeURIComponent(trimmedQuery)}`,
@@ -330,8 +342,18 @@ function SearchPageClient() {
             ...current,
             items: payload.items,
           }))
-        } else {
+        } else if (categoryType === 'anime') {
           setAnimeCategory((current) => ({
+            ...current,
+            items: payload.items,
+          }))
+        } else if (categoryType === 'track') {
+          setTracksCategory((current) => ({
+            ...current,
+            items: payload.items,
+          }))
+        } else {
+          setAlbumsCategory((current) => ({
             ...current,
             items: payload.items,
           }))
@@ -353,10 +375,16 @@ function SearchPageClient() {
     const shouldFetchMovie = activeFilter === 'all' || activeFilter === 'movies'
     const shouldFetchTv = activeFilter === 'all' || activeFilter === 'tv'
     const shouldFetchAnime = activeFilter === 'all' || activeFilter === 'anime'
+    const shouldFetchTracks =
+      activeFilter === 'all' || activeFilter === 'tracks'
+    const shouldFetchAlbums =
+      activeFilter === 'all' || activeFilter === 'albums'
     const tasks: Array<Promise<void>> = []
     if (shouldFetchMovie) tasks.push(fetchCategory('movie'))
     if (shouldFetchTv) tasks.push(fetchCategory('tv'))
     if (shouldFetchAnime) tasks.push(fetchCategory('anime'))
+    if (shouldFetchTracks) tasks.push(fetchCategory('track'))
+    if (shouldFetchAlbums) tasks.push(fetchCategory('album'))
 
     if (tasks.length === 0) {
       setIsLoading(false)
@@ -401,10 +429,25 @@ function SearchPageClient() {
       categories.push(animeCategory)
     }
 
+    if (tracksCategory.items.length > 0) {
+      categories.push(tracksCategory)
+    }
+
+    if (albumsCategory.items.length > 0) {
+      categories.push(albumsCategory)
+    }
+
     categories.push(...filteredStaticCategories)
 
     return categories
-  }, [movieCategory, tvCategory, animeCategory, filteredStaticCategories])
+  }, [
+    movieCategory,
+    tvCategory,
+    animeCategory,
+    tracksCategory,
+    albumsCategory,
+    filteredStaticCategories,
+  ])
 
   const visibleCategories = useMemo(() => {
     if (activeFilter === 'all') {
@@ -427,7 +470,8 @@ function SearchPageClient() {
     movies: getCategoryCount('movies'),
     tv: getCategoryCount('tv'),
     anime: getCategoryCount('anime'),
-    songs: getCategoryCount('songs'),
+    tracks: getCategoryCount('tracks'),
+    albums: getCategoryCount('albums'),
     games: getCategoryCount('games'),
   }
 
@@ -463,9 +507,7 @@ function SearchPageClient() {
     }
 
     if (!item.provider || !item.providerId) {
-      toast(
-        'Live saving is currently available for movie/anime search results only.',
-      )
+      toast('This item cannot be added to a list yet.')
       return
     }
 
@@ -585,9 +627,7 @@ function SearchPageClient() {
     }
 
     if (!item.provider || !item.providerId) {
-      toast(
-        'Rating is currently available for movie/anime search results only.',
-      )
+      toast('This item cannot be rated yet.')
       return
     }
 
@@ -693,7 +733,7 @@ function SearchPageClient() {
               <p className="text-sm text-muted-foreground">{summaryText}</p>
               {isLoading && (
                 <p className="text-xs text-muted-foreground">
-                  Fetching live TMDB results…
+                  Fetching live results…
                 </p>
               )}
               {error && <p className="text-xs text-rose-600">{error}</p>}
@@ -747,7 +787,7 @@ function SearchPageClient() {
                     updateSearchQuery(queryDraft)
                   }
                 }}
-                placeholder="Search movies, anime, songs, games…"
+                placeholder="Search movies, TV, anime, tracks, albums…"
                 aria-label="Search media"
                 className="h-11 w-full rounded-full border border-slate-200 bg-white/70 pl-12 pr-4 text-base"
               />

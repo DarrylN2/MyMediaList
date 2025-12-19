@@ -51,6 +51,7 @@ export function FiltersBar({
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="Planning">Planning</SelectItem>
             <SelectItem value="Watching">Watching</SelectItem>
+            <SelectItem value="Listening">Listening</SelectItem>
             <SelectItem value="Playing">Playing</SelectItem>
             <SelectItem value="Completed">Completed</SelectItem>
             <SelectItem value="Dropped">Dropped</SelectItem>
@@ -68,8 +69,11 @@ export function FiltersBar({
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
             <SelectItem value="movie">Movie</SelectItem>
+            <SelectItem value="tv">TV</SelectItem>
             <SelectItem value="anime">Anime</SelectItem>
             <SelectItem value="game">Game</SelectItem>
+            <SelectItem value="song">Track</SelectItem>
+            <SelectItem value="album">Album</SelectItem>
           </SelectContent>
         </Select>
       )}

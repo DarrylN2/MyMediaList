@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase-server'
 import type { Media, MediaProvider } from '@/types'
+import { spotifyFetchJson } from '@/lib/spotify-server'
 
 const TMDB_API_BASE = 'https://api.themoviedb.org/3'
 const ANILIST_API_BASE = 'https://graphql.anilist.co'
@@ -229,6 +230,157 @@ async function resolveMediaMetadata(media: MediaPayload): Promise<{
       Array.isArray(media.cast) && media.cast.length > 0
         ? media.cast.filter(Boolean)
         : null,
+  }
+
+  if (media.provider === 'spotify') {
+    const kind = media.providerId.startsWith('track-')
+      ? 'track'
+      : media.providerId.startsWith('album-')
+        ? 'album'
+        : null
+    if (!kind) return { ...base, metadata: null }
+
+    const spotifyId = media.providerId
+      .replace(/^track-/, '')
+      .replace(/^album-/, '')
+
+    const needsFetch =
+      base.year == null || base.durationMinutes == null || base.cast == null
+    if (!needsFetch) {
+      return {
+        ...base,
+        metadata: {
+          provider: media.provider,
+          providerId: media.providerId,
+          kind,
+          year: base.year,
+          durationMinutes: base.durationMinutes,
+          artists: base.cast,
+        },
+      }
+    }
+
+    try {
+      if (kind === 'track') {
+        const track = await spotifyFetchJson<{
+          id: string
+          duration_ms?: number
+          explicit?: boolean
+          artists?: Array<{ name?: string } | null>
+          album?: { release_date?: string } | null
+          external_urls?: { spotify?: string }
+        }>(
+          `https://api.spotify.com/v1/tracks/${encodeURIComponent(spotifyId)}?market=US`,
+        )
+
+        const yearValue = track.album?.release_date?.slice(0, 4)
+        const year =
+          base.year ??
+          (yearValue && /^\d{4}$/.test(yearValue) ? Number(yearValue) : null)
+
+        const durationMinutes =
+          base.durationMinutes ??
+          (typeof track.duration_ms === 'number' &&
+          Number.isFinite(track.duration_ms)
+            ? Math.max(0, Math.round(track.duration_ms / 60000))
+            : null)
+
+        const artists =
+          base.cast ??
+          (track.artists ?? [])
+            .map((a) => a?.name ?? undefined)
+            .filter((name): name is string => Boolean(name))
+
+        return {
+          year: Number.isFinite(year) ? (year as number) : null,
+          durationMinutes:
+            Number.isFinite(durationMinutes) && durationMinutes != null
+              ? (durationMinutes as number)
+              : null,
+          genres: base.genres,
+          directors: base.directors,
+          writers: base.writers,
+          cast: artists.length > 0 ? artists : null,
+          metadata: {
+            provider: media.provider,
+            providerId: media.providerId,
+            kind,
+            year,
+            durationMinutes,
+            artists,
+            explicit: Boolean(track.explicit),
+            externalUrl: track.external_urls?.spotify ?? null,
+          },
+        }
+      }
+
+      // album
+      const album = await spotifyFetchJson<{
+        id: string
+        release_date?: string
+        total_tracks?: number
+        artists?: Array<{ name?: string } | null>
+        tracks?: { items?: Array<{ duration_ms?: number } | null> }
+        external_urls?: { spotify?: string }
+      }>(
+        `https://api.spotify.com/v1/albums/${encodeURIComponent(spotifyId)}?market=US`,
+      )
+
+      const yearValue = album.release_date?.slice(0, 4)
+      const year =
+        base.year ??
+        (yearValue && /^\d{4}$/.test(yearValue) ? Number(yearValue) : null)
+
+      const totalDurationMs = (album.tracks?.items ?? []).reduce(
+        (acc, item) => {
+          const ms = item?.duration_ms
+          if (typeof ms === 'number' && Number.isFinite(ms) && ms > 0)
+            return acc + ms
+          return acc
+        },
+        0,
+      )
+
+      const durationMinutes =
+        base.durationMinutes ??
+        (totalDurationMs > 0
+          ? Math.max(0, Math.round(totalDurationMs / 60000))
+          : null)
+
+      const artists =
+        base.cast ??
+        (album.artists ?? [])
+          .map((a) => a?.name ?? undefined)
+          .filter((name): name is string => Boolean(name))
+
+      return {
+        year: Number.isFinite(year) ? (year as number) : null,
+        durationMinutes:
+          Number.isFinite(durationMinutes) && durationMinutes != null
+            ? (durationMinutes as number)
+            : null,
+        genres: base.genres,
+        directors: base.directors,
+        writers: base.writers,
+        cast: artists.length > 0 ? artists : null,
+        metadata: {
+          provider: media.provider,
+          providerId: media.providerId,
+          kind,
+          year,
+          durationMinutes,
+          artists,
+          totalTracks:
+            typeof album.total_tracks === 'number' &&
+            Number.isFinite(album.total_tracks)
+              ? album.total_tracks
+              : null,
+          externalUrl: album.external_urls?.spotify ?? null,
+        },
+      }
+    } catch {
+      return { ...base, metadata: null }
+    }
   }
 
   if (media.provider === 'anilist') {

@@ -930,7 +930,8 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                 <SelectItem value="tv">TV</SelectItem>
                 <SelectItem value="anime">Anime</SelectItem>
                 <SelectItem value="game">Game</SelectItem>
-                <SelectItem value="song">Song</SelectItem>
+                <SelectItem value="song">Track</SelectItem>
+                <SelectItem value="album">Album</SelectItem>
               </SelectContent>
             </Select>
             <div className="flex items-center gap-2">

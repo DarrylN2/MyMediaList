@@ -279,7 +279,11 @@ export function MediaListItem({
           ? 'ANIME'
           : type === 'game'
             ? 'GAME'
-            : 'MUSIC'
+            : type === 'album'
+              ? 'ALBUM'
+              : type === 'song'
+                ? 'TRACK'
+                : 'MUSIC'
 
   const genreParts = (genres ?? []).filter(Boolean).map(String)
   const visibleGenres = genreParts.slice(0, 3)

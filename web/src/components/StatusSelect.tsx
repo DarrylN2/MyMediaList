@@ -12,7 +12,7 @@ import type { EntryStatus } from '@/types'
 interface StatusSelectProps {
   value: EntryStatus
   onChange: (value: EntryStatus) => void
-  mediaType?: 'movie' | 'tv' | 'anime' | 'game' | 'song'
+  mediaType?: 'movie' | 'tv' | 'anime' | 'game' | 'song' | 'album'
 }
 
 export function StatusSelect({
@@ -21,7 +21,7 @@ export function StatusSelect({
   mediaType = 'movie',
 }: StatusSelectProps) {
   const getStatusOptions = (): EntryStatus[] => {
-    if (mediaType === 'song') {
+    if (mediaType === 'song' || mediaType === 'album') {
       return ['Planning', 'Listening', 'Completed', 'Dropped']
     }
     if (mediaType === 'game') {

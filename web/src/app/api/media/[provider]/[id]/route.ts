@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import type { Media } from '@/types'
+import { spotifyFetchJson } from '@/lib/spotify-server'
 
 const TMDB_API_BASE = 'https://api.themoviedb.org/3'
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500'
@@ -43,6 +44,138 @@ export async function GET(
   const typeParam = (
     request.nextUrl.searchParams.get('type') ?? 'movie'
   ).toLowerCase()
+
+  if (provider === 'spotify') {
+    const kind = id.startsWith('track-')
+      ? 'track'
+      : id.startsWith('album-')
+        ? 'album'
+        : null
+
+    if (!kind) {
+      return NextResponse.json(
+        { error: 'Invalid Spotify id.' },
+        { status: 400 },
+      )
+    }
+
+    const spotifyId = id.replace(/^track-/, '').replace(/^album-/, '')
+
+    try {
+      if (kind === 'track') {
+        const track = await spotifyFetchJson<{
+          id: string
+          name?: string
+          duration_ms?: number
+          explicit?: boolean
+          artists?: Array<{ name?: string } | null>
+          album?: {
+            name?: string
+            release_date?: string
+            images?: Array<{ url?: string } | null>
+          } | null
+          external_urls?: { spotify?: string }
+        }>(
+          `https://api.spotify.com/v1/tracks/${encodeURIComponent(spotifyId)}?market=US`,
+        )
+
+        const yearValue = track.album?.release_date?.slice(0, 4)
+        const year =
+          yearValue && /^\d{4}$/.test(yearValue) ? Number(yearValue) : undefined
+
+        const durationMinutes =
+          typeof track.duration_ms === 'number' &&
+          Number.isFinite(track.duration_ms)
+            ? Math.max(0, Math.round(track.duration_ms / 60000))
+            : undefined
+
+        const artists =
+          (track.artists ?? [])
+            .map((a) => a?.name ?? undefined)
+            .filter((name): name is string => Boolean(name)) ?? []
+
+        const media: Media = {
+          id,
+          type: 'song',
+          title: track.name ?? 'Untitled',
+          year,
+          posterUrl: track.album?.images?.[0]?.url ?? undefined,
+          provider: 'spotify',
+          providerId: `track-${track.id}`,
+          durationMinutes,
+          studios: [],
+          genres: [],
+          directors: [],
+          writers: [],
+          cast: artists,
+        }
+
+        return NextResponse.json({ media })
+      }
+
+      // album
+      const album = await spotifyFetchJson<{
+        id: string
+        name?: string
+        release_date?: string
+        total_tracks?: number
+        artists?: Array<{ name?: string } | null>
+        images?: Array<{ url?: string } | null>
+        tracks?: { items?: Array<{ duration_ms?: number } | null> }
+        external_urls?: { spotify?: string }
+      }>(
+        `https://api.spotify.com/v1/albums/${encodeURIComponent(spotifyId)}?market=US`,
+      )
+
+      const yearValue = album.release_date?.slice(0, 4)
+      const year =
+        yearValue && /^\d{4}$/.test(yearValue) ? Number(yearValue) : undefined
+
+      const totalDurationMs = (album.tracks?.items ?? []).reduce(
+        (acc, item) => {
+          const ms = item?.duration_ms
+          if (typeof ms === 'number' && Number.isFinite(ms) && ms > 0)
+            return acc + ms
+          return acc
+        },
+        0,
+      )
+
+      const durationMinutes =
+        totalDurationMs > 0
+          ? Math.max(0, Math.round(totalDurationMs / 60000))
+          : undefined
+
+      const artists =
+        (album.artists ?? [])
+          .map((a) => a?.name ?? undefined)
+          .filter((name): name is string => Boolean(name)) ?? []
+
+      const media: Media = {
+        id,
+        type: 'album',
+        title: album.name ?? 'Untitled',
+        year,
+        posterUrl: album.images?.[0]?.url ?? undefined,
+        provider: 'spotify',
+        providerId: `album-${album.id}`,
+        durationMinutes,
+        studios: [],
+        genres: [],
+        directors: [],
+        writers: [],
+        cast: artists,
+      }
+
+      return NextResponse.json({ media })
+    } catch (error) {
+      console.error('Spotify media detail error', error)
+      return NextResponse.json(
+        { error: 'Unexpected error while contacting Spotify.' },
+        { status: 500 },
+      )
+    }
+  }
 
   if (provider === 'anilist') {
     if (typeParam !== 'anime') {

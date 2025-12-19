@@ -24,7 +24,7 @@ import type { EntryStatus, Media } from '@/types'
 
 interface ParsedMediaId {
   provider: string
-  type: 'movie' | 'tv' | 'anime'
+  type: 'movie' | 'tv' | 'anime' | 'song' | 'album'
   sourceId: string
 }
 
@@ -367,7 +367,8 @@ export default function MediaDetailPage({
     media.type === 'tv' ||
     media.type === 'anime' ||
     media.type === 'game' ||
-    media.type === 'song'
+    media.type === 'song' ||
+    media.type === 'album'
       ? media.type
       : 'movie'
 
@@ -1036,6 +1037,19 @@ function parseMediaRouteId(routeId: string): ParsedMediaId | null {
   const [provider, maybeType, maybeId] = parts
   if (!provider) {
     return null
+  }
+
+  if (provider === 'spotify') {
+    if (maybeType !== 'track' && maybeType !== 'album') {
+      return null
+    }
+    const sourceId = parts.slice(1).join('-')
+    if (!sourceId) return null
+    return {
+      provider,
+      type: maybeType === 'album' ? 'album' : 'song',
+      sourceId,
+    }
   }
 
   if (provider === 'anilist') {
