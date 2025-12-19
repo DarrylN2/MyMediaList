@@ -372,19 +372,12 @@ function SearchPageClient() {
       }
     }
 
-    const shouldFetchMovie = activeFilter === 'all' || activeFilter === 'movies'
-    const shouldFetchTv = activeFilter === 'all' || activeFilter === 'tv'
-    const shouldFetchAnime = activeFilter === 'all' || activeFilter === 'anime'
-    const shouldFetchTracks =
-      activeFilter === 'all' || activeFilter === 'tracks'
-    const shouldFetchAlbums =
-      activeFilter === 'all' || activeFilter === 'albums'
     const tasks: Array<Promise<void>> = []
-    if (shouldFetchMovie) tasks.push(fetchCategory('movie'))
-    if (shouldFetchTv) tasks.push(fetchCategory('tv'))
-    if (shouldFetchAnime) tasks.push(fetchCategory('anime'))
-    if (shouldFetchTracks) tasks.push(fetchCategory('track'))
-    if (shouldFetchAlbums) tasks.push(fetchCategory('album'))
+    tasks.push(fetchCategory('movie'))
+    tasks.push(fetchCategory('tv'))
+    tasks.push(fetchCategory('anime'))
+    tasks.push(fetchCategory('track'))
+    tasks.push(fetchCategory('album'))
 
     if (tasks.length === 0) {
       setIsLoading(false)
@@ -398,7 +391,7 @@ function SearchPageClient() {
     })
 
     return () => controller.abort()
-  }, [searchQuery, activeFilter])
+  }, [searchQuery])
 
   const filteredStaticCategories = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -802,7 +795,6 @@ function SearchPageClient() {
                 size="sm"
                 variant={activeFilter === filter.id ? 'default' : 'ghost'}
                 className="rounded-full px-4"
-                disabled={filterCounts[filter.id] === 0}
                 onClick={() => updateCategoryFilter(filter.id)}
               >
                 {filter.label}
