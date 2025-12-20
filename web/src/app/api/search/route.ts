@@ -249,10 +249,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json<SearchResponse>({ query, type, items })
     } catch (error) {
       console.error('Spotify search error', error)
-      return NextResponse.json(
-        { error: 'Unexpected error while contacting Spotify.' },
-        { status: 500 },
-      )
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Unexpected error while contacting Spotify.'
+      return NextResponse.json({ error: message }, { status: 500 })
     }
   }
 

@@ -46,6 +46,15 @@ import { toast } from 'sonner'
 
 type CategoryId = 'movies' | 'tv' | 'anime' | 'tracks' | 'albums' | 'games'
 type CategoryFilter = 'all' | CategoryId
+type LiveCategoryType = 'movie' | 'tv' | 'anime' | 'track' | 'album'
+
+const LIVE_CATEGORY_LABELS: Record<LiveCategoryType, string> = {
+  movie: 'Movies',
+  tv: 'TV Shows',
+  anime: 'Anime',
+  track: 'Tracks',
+  album: 'Albums',
+}
 
 function parseCategoryFilter(raw: string | null): CategoryFilter {
   const value = (raw ?? 'all').toLowerCase()
@@ -224,7 +233,9 @@ function SearchPageClient() {
   const [albumsCategory, setAlbumsCategory] =
     useState<SearchCategory>(ALBUMS_CATEGORY_BASE)
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [categoryErrors, setCategoryErrors] = useState<
+    Partial<Record<LiveCategoryType, string>>
+  >({})
   const paramQuery = searchParams.get('query') ?? ''
   const searchQuery = searchParams.has('query') ? paramQuery : DEFAULT_QUERY
   const [queryDraft, setQueryDraft] = useState(searchQuery)
@@ -323,7 +334,7 @@ function SearchPageClient() {
       setAnimeCategory(ANIME_CATEGORY_BASE)
       setTracksCategory(TRACKS_CATEGORY_BASE)
       setAlbumsCategory(ALBUMS_CATEGORY_BASE)
-      setError(null)
+      setCategoryErrors({})
       setIsLoading(false)
       return
     }
@@ -335,11 +346,9 @@ function SearchPageClient() {
     setTracksCategory(TRACKS_CATEGORY_BASE)
     setAlbumsCategory(ALBUMS_CATEGORY_BASE)
     setIsLoading(true)
-    setError(null)
+    setCategoryErrors({})
 
-    const fetchCategory = async (
-      categoryType: 'movie' | 'tv' | 'anime' | 'track' | 'album',
-    ) => {
+    const fetchCategory = async (categoryType: LiveCategoryType) => {
       try {
         const response = await fetch(
           `/api/search?type=${categoryType}&query=${encodeURIComponent(trimmedQuery)}`,
@@ -389,10 +398,13 @@ function SearchPageClient() {
         }
         console.error(fetchError)
         if (!controller.signal.aborted) {
-          setError(
-            (previous) =>
-              previous ?? 'Unable to load results. Try again in a moment.',
-          )
+          setCategoryErrors((previous) => ({
+            ...previous,
+            [categoryType]:
+              fetchError instanceof Error && fetchError.message
+                ? fetchError.message
+                : 'Unable to load results. Try again in a moment.',
+          }))
         }
       }
     }
@@ -748,6 +760,34 @@ function SearchPageClient() {
 
   const showEmptyState = !isLoading && visibleCategories.length === 0
 
+  const searchError = useMemo(() => {
+    const entries = Object.entries(categoryErrors).filter(
+      (entry): entry is [LiveCategoryType, string] =>
+        entry[0] in LIVE_CATEGORY_LABELS &&
+        Boolean(entry[1] && entry[1].trim()),
+    )
+
+    if (entries.length === 0) return null
+    if (entries.length === 1) {
+      const [categoryType, message] = entries[0]
+      return `${LIVE_CATEGORY_LABELS[categoryType]}: ${message}`
+    }
+
+    if (entries.length <= 2) {
+      return entries
+        .map(
+          ([categoryType, message]) =>
+            `${LIVE_CATEGORY_LABELS[categoryType]}: ${message}`,
+        )
+        .join(' \u2022 ')
+    }
+
+    const failedLabels = entries
+      .map(([categoryType]) => LIVE_CATEGORY_LABELS[categoryType])
+      .join(', ')
+    return `Some results couldn't be loaded (${failedLabels}).`
+  }, [categoryErrors])
+
   return (
     <div className="space-y-8 pb-12">
       <div className="rounded-xl border bg-white/80 p-6 shadow-sm backdrop-blur">
@@ -766,7 +806,9 @@ function SearchPageClient() {
                   Fetching live results…
                 </p>
               )}
-              {error && <p className="text-xs text-rose-600">{error}</p>}
+              {searchError && (
+                <p className="text-xs text-rose-600">{searchError}</p>
+              )}
             </div>
             <Badge className="rounded-full border border-indigo-100 bg-indigo-50 text-xs font-medium text-indigo-700">
               <Sparkles className="h-4 w-4" />
