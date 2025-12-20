@@ -1067,7 +1067,7 @@ function SearchCategorySection({
         </Badge>
       </div>
 
-      {category.id === 'tracks' ? (
+      {category.id === 'tracks' || category.id === 'albums' ? (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {category.items.map((item) => {
             const key =
@@ -1077,8 +1077,19 @@ function SearchCategorySection({
             const isRated = Boolean(key && ratedKeys.has(key))
             const ratingValue = key ? ratedValues.get(key) : undefined
             const isAdded = Boolean(key && addedKeys.has(key))
-            return (
+            return category.id === 'tracks' ? (
               <TrackSearchResultCard
+                key={item.id}
+                item={item}
+                onAdd={() => onAdd(item)}
+                onRate={() => onRate(item)}
+                onSelect={() => onSelect(item)}
+                isRated={isRated}
+                ratingValue={ratingValue}
+                isAdded={isAdded}
+              />
+            ) : (
+              <AlbumSearchResultCard
                 key={item.id}
                 item={item}
                 onAdd={() => onAdd(item)}
@@ -1305,6 +1316,193 @@ function TrackSearchResultCard({
           >
             <Music2 className="h-4 w-4 text-emerald-600" />
           </Button>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+interface AlbumSearchResultCardProps {
+  item: SearchResultItem
+  onAdd: () => void
+  onRate: () => void
+  onSelect: () => void
+  isRated: boolean
+  ratingValue?: number
+  isAdded: boolean
+}
+
+function AlbumSearchResultCard({
+  item,
+  onAdd,
+  onRate,
+  onSelect,
+  isRated,
+  ratingValue,
+  isAdded,
+}: AlbumSearchResultCardProps) {
+  const yearLabel =
+    typeof item.year === 'number' && Number.isFinite(item.year)
+      ? item.year
+      : null
+
+  const artistLine = item.artist ?? item.subtitle
+  const metadataLine = yearLabel
+    ? `${artistLine} • ${yearLabel} • Album`
+    : `${artistLine} • Album`
+
+  const ratedText =
+    typeof ratingValue === 'number' && Number.isFinite(ratingValue)
+      ? `★ ${Math.round(ratingValue)}/10`
+      : 'Rated'
+
+  const openInSpotify = () => {
+    if (!item.externalUrl) return
+    window.open(item.externalUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  return (
+    <article
+      role="button"
+      tabIndex={0}
+      aria-label={`View details for ${item.title}`}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect()
+        }
+      }}
+      className="group relative flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-within:ring-2 focus-within:ring-indigo-500/40 focus-visible:outline-none sm:gap-4 sm:p-4"
+    >
+      <div className="shrink-0">
+        {item.coverUrl ? (
+          <Image
+            src={item.coverUrl}
+            alt={`${item.title} artwork`}
+            width={64}
+            height={64}
+            className="h-14 w-14 rounded-lg border object-cover shadow-sm sm:h-16 sm:w-16"
+          />
+        ) : (
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg border bg-slate-50 text-indigo-600 shadow-sm sm:h-16 sm:w-16">
+            <Disc3 className="h-7 w-7 opacity-50" strokeWidth={1.5} />
+          </div>
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1" data-card-content>
+        <div className="space-y-0.5">
+          <h3 className="truncate text-base font-semibold leading-tight">
+            {item.title}
+          </h3>
+          <p className="truncate text-sm text-muted-foreground">
+            {metadataLine}
+          </p>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {item.tags.map((tag) => (
+            <Badge
+              key={tag}
+              variant="outline"
+              className="rounded-full border-dashed px-2 py-0 text-xs"
+            >
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      </div>
+
+      <div className="shrink-0">
+        <div className="flex flex-col items-end gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="hidden h-9 w-36 rounded-full px-4 text-xs font-semibold sm:inline-flex"
+            onClick={(event) => {
+              event.stopPropagation()
+              onRate()
+            }}
+          >
+            {isRated ? ratedText : '☆ Rate'}
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="h-9 w-9 rounded-full sm:hidden"
+            aria-label={isRated ? ratedText : 'Rate album'}
+            onClick={(event) => {
+              event.stopPropagation()
+              onRate()
+            }}
+          >
+            <Star
+              className={cn(
+                'h-4 w-4',
+                isRated && 'fill-yellow-500 text-yellow-500',
+              )}
+            />
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant={isAdded ? 'outline' : 'default'}
+            className="hidden h-9 w-36 rounded-full px-4 text-xs font-semibold sm:inline-flex"
+            onClick={(event) => {
+              event.stopPropagation()
+              onAdd()
+            }}
+          >
+            {isAdded ? '+ Added' : '+ Add to list'}
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={isAdded ? 'outline' : 'default'}
+            className="h-9 w-9 rounded-full sm:hidden"
+            aria-label={isAdded ? 'Added to list' : 'Add to list'}
+            onClick={(event) => {
+              event.stopPropagation()
+              onAdd()
+            }}
+          >
+            <span className="text-base leading-none">+</span>
+          </Button>
+
+          {item.externalUrl && (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="hidden h-9 w-36 rounded-full px-4 text-xs font-semibold sm:inline-flex"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  openInSpotify()
+                }}
+              >
+                <Music2 className="h-4 w-4 text-emerald-600" />
+                Spotify
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                className="h-9 w-9 rounded-full sm:hidden"
+                aria-label="Open in Spotify"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  openInSpotify()
+                }}
+              >
+                <Music2 className="h-4 w-4 text-emerald-600" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </article>
