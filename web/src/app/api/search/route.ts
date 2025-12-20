@@ -584,6 +584,7 @@ interface SpotifyAlbumSummary {
   album_type?: string
   images?: SpotifyImage[]
   artists?: SpotifyArtist[]
+  external_urls?: { spotify?: string }
 }
 
 interface SpotifyTrackSummary {
@@ -708,6 +709,7 @@ async function searchSpotifyAlbums(query: string): Promise<SearchResultItem[]> {
         type: 'album',
         provider: 'spotify',
         providerId,
+        externalUrl: album.external_urls?.spotify ?? undefined,
       }
     })
 }

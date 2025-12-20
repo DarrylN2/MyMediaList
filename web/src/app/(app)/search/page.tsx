@@ -1178,6 +1178,19 @@ function formatDuration(seconds: number | undefined): string | null {
   return `${mins}:${String(secs).padStart(2, '0')}`
 }
 
+function SpotifyIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+    >
+      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.521 17.315c-.222.368-.699.485-1.067.263-2.923-1.785-6.604-2.189-10.946-1.202-.42.095-.84-.168-.936-.588-.095-.42.168-.84.588-.936 4.742-1.078 8.804-.62 12.141 1.404.368.222.485.699.263 1.059zm1.525-3.394c-.28.454-.874.599-1.328.319-3.346-2.057-8.45-2.651-12.404-1.45-.506.153-1.039-.133-1.192-.639-.153-.506.133-1.039.639-1.192 4.521-1.371 10.137-.707 13.97 1.63.454.28.599.874.319 1.332zm.131-3.535C15.446 7.95 8.116 7.72 4.458 8.869c-.586.184-1.21-.143-1.394-.729-.184-.586.143-1.21.729-1.394 4.199-1.318 11.18-1.063 15.617 1.59.544.326.721 1.031.395 1.575-.325.544-1.03.721-1.575.395z" />
+    </svg>
+  )
+}
+
 interface TrackSearchResultCardProps {
   item: SearchResultItem
   onAdd: () => void
@@ -1333,30 +1346,28 @@ function TrackSearchResultCard({
           <Button
             type="button"
             size="sm"
-            variant="outline"
             disabled={!item.externalUrl}
-            className="hidden h-9 w-36 rounded-full px-4 text-xs font-semibold sm:inline-flex"
+            className="hidden h-9 w-36 rounded-full bg-[#1DB954] px-4 text-xs font-semibold text-white hover:bg-[#1AA34A] disabled:bg-[#1DB954]/60 disabled:text-white/80 sm:inline-flex"
             onClick={(event) => {
               event.stopPropagation()
               openInSpotify()
             }}
           >
-            <Music2 className="h-4 w-4 text-emerald-600" />
+            <SpotifyIcon className="h-4 w-4" />
             Spotify
           </Button>
           <Button
             type="button"
             size="icon"
-            variant="outline"
             disabled={!item.externalUrl}
-            className="h-9 w-9 rounded-full sm:hidden"
+            className="h-9 w-9 rounded-full bg-[#1DB954] text-white hover:bg-[#1AA34A] disabled:bg-[#1DB954]/60 disabled:text-white/80 sm:hidden"
             aria-label="Open in Spotify"
             onClick={(event) => {
               event.stopPropagation()
               openInSpotify()
             }}
           >
-            <Music2 className="h-4 w-4 text-emerald-600" />
+            <SpotifyIcon className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -1515,36 +1526,32 @@ function AlbumSearchResultCard({
             <span className="text-base leading-none">+</span>
           </Button>
 
-          {item.externalUrl && (
-            <>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="hidden h-9 w-36 rounded-full px-4 text-xs font-semibold sm:inline-flex"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  openInSpotify()
-                }}
-              >
-                <Music2 className="h-4 w-4 text-emerald-600" />
-                Spotify
-              </Button>
-              <Button
-                type="button"
-                size="icon"
-                variant="outline"
-                className="h-9 w-9 rounded-full sm:hidden"
-                aria-label="Open in Spotify"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  openInSpotify()
-                }}
-              >
-                <Music2 className="h-4 w-4 text-emerald-600" />
-              </Button>
-            </>
-          )}
+          <Button
+            type="button"
+            size="sm"
+            disabled={!item.externalUrl}
+            className="hidden h-9 w-36 rounded-full bg-[#1DB954] px-4 text-xs font-semibold text-white hover:bg-[#1AA34A] disabled:bg-[#1DB954]/60 disabled:text-white/80 sm:inline-flex"
+            onClick={(event) => {
+              event.stopPropagation()
+              openInSpotify()
+            }}
+          >
+            <SpotifyIcon className="h-4 w-4" />
+            Spotify
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            disabled={!item.externalUrl}
+            className="h-9 w-9 rounded-full bg-[#1DB954] text-white hover:bg-[#1AA34A] disabled:bg-[#1DB954]/60 disabled:text-white/80 sm:hidden"
+            aria-label="Open in Spotify"
+            onClick={(event) => {
+              event.stopPropagation()
+              openInSpotify()
+            }}
+          >
+            <SpotifyIcon className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </article>
