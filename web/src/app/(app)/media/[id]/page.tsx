@@ -1,15 +1,31 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { use } from 'react'
+import { use, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
-import { Building2, Clock, Tags, Tv, Users } from 'lucide-react'
+import {
+  ArrowUpDown,
+  Building2,
+  Clock,
+  Music2,
+  Tags,
+  Tv,
+  Users,
+} from 'lucide-react'
 import { RatingStars } from '@/components/RatingStars'
 import { StatusSelect } from '@/components/StatusSelect'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -28,6 +44,20 @@ interface ParsedMediaId {
   sourceId: string
 }
 
+interface SpotifyAlbumTrack {
+  id: string
+  title: string
+  durationMs: number | null
+  explicit: boolean
+  discNumber: number | null
+  trackNumber: number | null
+  previewUrl: string | null
+  externalUrl: string | null
+  artists: Array<{ id: string; name: string; imageUrl: string | null }>
+}
+
+type AlbumTrackSort = 'album' | 'title' | 'duration' | 'artist'
+
 export default function MediaDetailPage({
   params,
 }: {
@@ -44,7 +74,6 @@ export default function MediaDetailPage({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [listsLoading, setListsLoading] = useState(false)
   const [listsError, setListsError] = useState<string | null>(null)
@@ -55,6 +84,16 @@ export default function MediaDetailPage({
   const [newListDescription, setNewListDescription] = useState('')
   const [createAndAddSaving, setCreateAndAddSaving] = useState(false)
   const [addSavingListId, setAddSavingListId] = useState<string | null>(null)
+  const [albumTracks, setAlbumTracks] = useState<SpotifyAlbumTrack[]>([])
+  const [trackSort, setTrackSort] = useState<AlbumTrackSort>('album')
+  const [pendingAddMedia, setPendingAddMedia] = useState<Media | null>(null)
+  const [trackRateOpen, setTrackRateOpen] = useState(false)
+  const [trackToRate, setTrackToRate] = useState<Media | null>(null)
+  const [trackRateStatus, setTrackRateStatus] =
+    useState<EntryStatus>('Planning')
+  const [trackRateRating, setTrackRateRating] = useState<number>(0)
+  const [trackRateNotes, setTrackRateNotes] = useState('')
+  const [trackRateSaving, setTrackRateSaving] = useState(false)
 
   useEffect(() => {
     const parsed = parseMediaRouteId(id)
@@ -81,9 +120,15 @@ export default function MediaDetailPage({
           throw new Error(payload?.error ?? 'Failed to load media details.')
         }
 
-        const payload = (await response.json()) as { media: Media }
+        const payload = (await response.json()) as {
+          media: Media
+          albumTracks?: SpotifyAlbumTrack[]
+        }
         if (!controller.signal.aborted) {
           setMedia(payload.media)
+          setAlbumTracks(
+            Array.isArray(payload.albumTracks) ? payload.albumTracks : [],
+          )
         }
       } catch (fetchError) {
         if ((fetchError as Error).name === 'AbortError') {
@@ -92,6 +137,7 @@ export default function MediaDetailPage({
         console.error(fetchError)
         if (!controller.signal.aborted) {
           setError('Unable to load media details. Please try again.')
+          setAlbumTracks([])
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -163,6 +209,42 @@ export default function MediaDetailPage({
     return () => controller.abort()
   }, [id, userId])
 
+  const isSpotifyAlbum =
+    media?.provider === 'spotify' && media?.type === 'album'
+
+  const sortedAlbumTracks = useMemo(() => {
+    if (!isSpotifyAlbum) return []
+
+    const next = [...albumTracks]
+    next.sort((a, b) => {
+      if (trackSort === 'album') {
+        const discDiff = (a.discNumber ?? 0) - (b.discNumber ?? 0)
+        if (discDiff !== 0) return discDiff
+        const trackDiff = (a.trackNumber ?? 0) - (b.trackNumber ?? 0)
+        if (trackDiff !== 0) return trackDiff
+        return a.title.localeCompare(b.title)
+      }
+
+      if (trackSort === 'duration') {
+        const durationDiff = (b.durationMs ?? 0) - (a.durationMs ?? 0)
+        if (durationDiff !== 0) return durationDiff
+        return a.title.localeCompare(b.title)
+      }
+
+      if (trackSort === 'artist') {
+        const artistA = a.artists[0]?.name ?? ''
+        const artistB = b.artists[0]?.name ?? ''
+        const artistDiff = artistA.localeCompare(artistB)
+        if (artistDiff !== 0) return artistDiff
+        return a.title.localeCompare(b.title)
+      }
+
+      return a.title.localeCompare(b.title)
+    })
+
+    return next
+  }, [albumTracks, isSpotifyAlbum, trackSort])
+
   if (isLoading) {
     return (
       <div className="rounded-3xl border border-slate-100 bg-white/80 p-6 text-sm text-muted-foreground">
@@ -181,18 +263,20 @@ export default function MediaDetailPage({
 
   const cleanDescription = stripAniListDescription(media.description)
 
-  const openAddToList = async () => {
+  const openAddToList = async (overrideMedia?: Media) => {
     if (!userId) {
       toast('Log in to add items to your list.')
       return
     }
 
-    if (!media.provider || !media.providerId) {
+    const targetMedia = overrideMedia ?? media
+    if (!targetMedia?.provider || !targetMedia.providerId) {
       toast('This item cannot be added to a list yet.')
       return
     }
 
     try {
+      setPendingAddMedia(targetMedia)
       setAddOpen(true)
       setListsLoading(true)
       setListsError(null)
@@ -220,8 +304,89 @@ export default function MediaDetailPage({
     }
   }
 
+  const buildTrackMedia = (track: SpotifyAlbumTrack): Media | null => {
+    if (!media) return null
+    return {
+      id: `spotify-track-${track.id}`,
+      type: 'song',
+      title: track.title,
+      year: media.year,
+      posterUrl: media.posterUrl,
+      provider: 'spotify',
+      providerId: `track-${track.id}`,
+      description: media.description,
+      durationMinutes:
+        typeof track.durationMs === 'number'
+          ? Math.max(0, Math.round(track.durationMs / 60000))
+          : undefined,
+      cast: track.artists.map((artist) => artist.name).filter(Boolean),
+    }
+  }
+
+  const openTrackAdd = (track: SpotifyAlbumTrack) => {
+    const trackMedia = buildTrackMedia(track)
+    if (!trackMedia) {
+      toast('Track data is still loading.')
+      return
+    }
+    void openAddToList(trackMedia)
+  }
+
+  const openTrackRateDialog = (track: SpotifyAlbumTrack) => {
+    if (!userId) {
+      toast('Log in to rate tracks.')
+      return
+    }
+    const trackMedia = buildTrackMedia(track)
+    if (!trackMedia) {
+      toast('Track data is still loading.')
+      return
+    }
+    setTrackToRate(trackMedia)
+    setTrackRateStatus('Planning')
+    setTrackRateRating(0)
+    setTrackRateNotes('')
+    setTrackRateOpen(true)
+  }
+
+  const saveTrackRating = async () => {
+    if (!userId || !trackToRate) return
+    setTrackRateSaving(true)
+    try {
+      const response = await fetch('/api/list', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          media: trackToRate,
+          entry: {
+            status: trackRateStatus,
+            rating: trackRateRating > 0 ? trackRateRating : null,
+            note: trackRateNotes,
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to save rating.')
+      }
+
+      toast.success(`Saved rating for ${trackToRate.title}.`)
+      setTrackRateOpen(false)
+    } catch (error) {
+      console.error(error)
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to save rating.',
+      )
+    } finally {
+      setTrackRateSaving(false)
+    }
+  }
+
   const addToList = async (listId: string) => {
-    if (!userId || !media.provider || !media.providerId) return
+    const targetMedia = pendingAddMedia ?? media
+    if (!userId || !targetMedia?.provider || !targetMedia.providerId) return
     setAddSavingListId(listId)
     try {
       const response = await fetch(`/api/lists/${listId}/items`, {
@@ -230,19 +395,19 @@ export default function MediaDetailPage({
         body: JSON.stringify({
           userId,
           media: {
-            provider: media.provider,
-            providerId: media.providerId,
-            type: media.type,
-            title: media.title,
-            posterUrl: media.posterUrl,
-            description: cleanDescription,
-            year: media.year,
-            durationMinutes: media.durationMinutes,
-            episodeCount: media.episodeCount,
-            genres: media.genres,
-            directors: media.directors,
-            writers: media.writers,
-            cast: media.cast,
+            provider: targetMedia.provider,
+            providerId: targetMedia.providerId,
+            type: targetMedia.type,
+            title: targetMedia.title,
+            posterUrl: targetMedia.posterUrl,
+            description: targetMedia.description,
+            year: targetMedia.year,
+            durationMinutes: targetMedia.durationMinutes,
+            episodeCount: targetMedia.episodeCount,
+            genres: targetMedia.genres,
+            directors: targetMedia.directors,
+            writers: targetMedia.writers,
+            cast: targetMedia.cast,
           },
         }),
       })
@@ -252,7 +417,9 @@ export default function MediaDetailPage({
       }
 
       toast.success(
-        `Added ${media.title} to "${lists.find((l) => l.id === listId)?.title ?? 'list'}".`,
+        `Added ${
+          targetMedia.title
+        } to "${lists.find((l) => l.id === listId)?.title ?? 'list'}".`,
       )
       setAddOpen(false)
     } catch (error) {
@@ -363,6 +530,11 @@ export default function MediaDetailPage({
     }
   }
 
+  const openExternalUrl = (url: string | null | undefined) => {
+    if (!url) return
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
   const statusMediaType =
     media.type === 'tv' ||
     media.type === 'anime' ||
@@ -393,9 +565,13 @@ export default function MediaDetailPage({
     60,
   )
 
-  const galleryImages = (media.additionalImages ?? [])
-    .filter(Boolean)
-    .slice(0, 8)
+  const castLabel =
+    media.type === 'album' || media.type === 'song' ? 'Artists' : 'Cast'
+
+  const creditsTitle =
+    media.type === 'album' || media.type === 'song'
+      ? 'Artists'
+      : 'Credits & Creative Team'
 
   const creatorCredits =
     (media.creatorCredits ?? [])
@@ -528,8 +704,26 @@ export default function MediaDetailPage({
                       {media.contentRating}
                     </Badge>
                   ) : null}
+                  {media.provider === 'spotify' && media.externalUrl ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 rounded-full bg-[#1DB954] px-3 text-xs font-semibold text-white hover:bg-[#1AA34A]"
+                      onClick={() => openExternalUrl(media.externalUrl)}
+                    >
+                      <SpotifyIcon className="h-4 w-4" />
+                      Spotify
+                    </Button>
+                  ) : null}
                 </div>
               </div>
+
+              {(media.type === 'album' || media.type === 'song') &&
+              (media.cast ?? []).length > 0 ? (
+                <p className="text-sm text-foreground/75">
+                  {media.cast?.join(', ')}
+                </p>
+              ) : null}
 
               {cleanDescription ? (
                 <p className="max-w-3xl text-base leading-relaxed text-foreground/85">
@@ -545,6 +739,78 @@ export default function MediaDetailPage({
       <div className="grid gap-8 lg:grid-cols-[1fr_420px]">
         {/* Left column */}
         <div className="space-y-8">
+          {isSpotifyAlbum ? (
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">Tracks</h2>
+                    <div className="text-sm text-muted-foreground">
+                      {albumTracks.length > 0
+                        ? `${albumTracks.length} tracks`
+                        : 'No tracks found.'}
+                    </div>
+                  </div>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <ArrowUpDown className="h-4 w-4" />
+                        Sort
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Sort tracks</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuRadioGroup
+                        value={trackSort}
+                        onValueChange={(value) =>
+                          setTrackSort(value as AlbumTrackSort)
+                        }
+                      >
+                        <DropdownMenuRadioItem value="album">
+                          Album order
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="title">
+                          Title (A–Z)
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="artist">
+                          Artist (A–Z)
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="duration">
+                          Duration (longest)
+                        </DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {sortedAlbumTracks.length > 0 ? (
+                  sortedAlbumTracks.map((track) => (
+                    <AlbumTrackCard
+                      key={track.id}
+                      track={track}
+                      coverUrl={media.posterUrl ?? null}
+                      onAdd={() => openTrackAdd(track)}
+                      onRate={() => openTrackRateDialog(track)}
+                      onOpenSpotify={() => openExternalUrl(track.externalUrl)}
+                    />
+                  ))
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    Tracks aren’t available for this album yet.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Card>
             <CardHeader>
               <h2 className="text-lg font-semibold">Key Details</h2>
@@ -571,6 +837,22 @@ export default function MediaDetailPage({
                   </div>
                 </div>
               </div>
+
+              {media.type === 'album' ? (
+                <div className="flex items-start gap-3">
+                  <Music2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Tracks
+                    </div>
+                    <div className="text-base font-medium">
+                      {albumTracks.length > 0
+                        ? `${albumTracks.length} tracks`
+                        : 'ƒ?"'}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {media.type === 'tv' && media.episodeCount ? (
                 <div className="flex items-start gap-3">
@@ -626,7 +908,7 @@ export default function MediaDetailPage({
             <CardHeader>
               <h2 className="flex items-center gap-2 text-lg font-semibold">
                 <Users className="h-5 w-5 text-muted-foreground" />
-                Credits & Creative Team
+                {creditsTitle}
               </h2>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -767,7 +1049,7 @@ export default function MediaDetailPage({
               {cast.length > 0 ? (
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Cast
+                    {castLabel}
                   </div>
                   <div className="mt-3 max-h-[560px] overflow-y-auto pr-1">
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -859,7 +1141,7 @@ export default function MediaDetailPage({
                   type="button"
                   variant="outline"
                   className="w-full"
-                  onClick={openAddToList}
+                  onClick={() => void openAddToList()}
                   disabled={!user || isSaving}
                 >
                   Add to list
@@ -883,35 +1165,6 @@ export default function MediaDetailPage({
                 ) : null}
               </CardContent>
             </Card>
-
-            {galleryImages.length > 0 ? (
-              <Card>
-                <CardHeader>
-                  <h2 className="text-lg font-semibold">Photos & Backdrops</h2>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
-                    {galleryImages.map((src, index) => (
-                      <button
-                        key={`${src}-${index}`}
-                        type="button"
-                        onClick={() => setSelectedImage(src)}
-                        className="relative aspect-video overflow-hidden rounded-2xl border bg-muted transition hover:ring-2 hover:ring-ring"
-                        aria-label={`Open image ${index + 1}`}
-                      >
-                        <Image
-                          src={src}
-                          alt={`${media.title} image ${index + 1}`}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 1024px) 50vw, 25vw"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ) : null}
           </div>
         </div>
       </div>
@@ -926,12 +1179,15 @@ export default function MediaDetailPage({
             setNewListDescription('')
             setAddSavingListId(null)
             setCreateAndAddSaving(false)
+            setPendingAddMedia(null)
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{`Add to list: ${media.title}`}</DialogTitle>
+            <DialogTitle>{`Add to list: ${
+              pendingAddMedia?.title ?? media.title
+            }`}</DialogTitle>
           </DialogHeader>
 
           {listsLoading ? (
@@ -1005,26 +1261,211 @@ export default function MediaDetailPage({
       </Dialog>
 
       <Dialog
-        open={Boolean(selectedImage)}
+        open={trackRateOpen}
         onOpenChange={(open) => {
-          if (!open) setSelectedImage(null)
+          setTrackRateOpen(open)
+          if (!open) {
+            setTrackToRate(null)
+          }
         }}
       >
-        <DialogContent className="max-w-5xl p-2">
-          <div className="relative h-[70vh] w-full overflow-hidden rounded-xl bg-muted">
-            {selectedImage ? (
-              <Image
-                src={selectedImage}
-                alt={media.title}
-                fill
-                className="object-contain"
-                sizes="80vw"
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{`Rate ${trackToRate?.title ?? 'track'}`}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium">Status</label>
+              <StatusSelect
+                value={trackRateStatus}
+                onChange={setTrackRateStatus}
+                mediaType="song"
               />
-            ) : null}
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">Rating</label>
+              <RatingStars
+                rating={trackRateRating}
+                interactive
+                onRatingChange={setTrackRateRating}
+                maxRating={10}
+                size="lg"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">Notes</label>
+              <Textarea
+                value={trackRateNotes}
+                onChange={(event) => setTrackRateNotes(event.target.value)}
+                placeholder="Add your thoughts..."
+                rows={3}
+              />
+            </div>
           </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setTrackRateOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={saveTrackRating}
+              disabled={trackRateSaving}
+            >
+              {trackRateSaving ? 'Saving…' : 'Save rating'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function SpotifyIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+    >
+      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.521 17.315c-.222.368-.699.485-1.067.263-2.923-1.785-6.604-2.189-10.946-1.202-.42.095-.84-.168-.936-.588-.095-.42.168-.84.588-.936 4.742-1.078 8.804-.62 12.141 1.404.368.222.485.699.263 1.059zm1.525-3.394c-.28.454-.874.599-1.328.319-3.346-2.057-8.45-2.651-12.404-1.45-.506.153-1.039-.133-1.192-.639-.153-.506.133-1.039.639-1.192 4.521-1.371 10.137-.707 13.97 1.63.454.28.599.874.319 1.332zm.131-3.535C15.446 7.95 8.116 7.72 4.458 8.869c-.586.184-1.21-.143-1.394-.729-.184-.586.143-1.21.729-1.394 4.199-1.318 11.18-1.063 15.617 1.59.544.326.721 1.031.395 1.575-.325.544-1.03.721-1.575.395z" />
+    </svg>
+  )
+}
+
+function formatDurationMs(durationMs: number | null): string | null {
+  if (typeof durationMs !== 'number' || !Number.isFinite(durationMs))
+    return null
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+function AlbumTrackCard({
+  track,
+  coverUrl,
+  onAdd,
+  onRate,
+  onOpenSpotify,
+}: {
+  track: SpotifyAlbumTrack
+  coverUrl: string | null
+  onAdd: () => void
+  onRate: () => void
+  onOpenSpotify: () => void
+}) {
+  const durationLabel = formatDurationMs(track.durationMs)
+  const artistLine = track.artists.map((artist) => artist.name).join(', ')
+  const trackIndexLabel =
+    track.discNumber && track.trackNumber
+      ? `D${track.discNumber} · ${track.trackNumber}`
+      : track.trackNumber
+        ? `${track.trackNumber}`
+        : null
+
+  return (
+    <article className="group relative flex items-center gap-3 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-within:ring-2 focus-within:ring-indigo-500/40 sm:gap-4 sm:p-4">
+      <div className="shrink-0">
+        {coverUrl ? (
+          <Image
+            src={coverUrl}
+            alt={`${track.title} artwork`}
+            width={64}
+            height={64}
+            className="h-14 w-14 rounded-lg border object-cover shadow-sm sm:h-16 sm:w-16"
+          />
+        ) : (
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg border bg-slate-50 text-indigo-600 shadow-sm sm:h-16 sm:w-16">
+            <Music2 className="h-7 w-7 opacity-50" strokeWidth={1.5} />
+          </div>
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="space-y-0.5">
+          <h3 className="truncate text-base font-semibold leading-tight">
+            {track.title}
+          </h3>
+          <p className="truncate text-sm text-muted-foreground">{artistLine}</p>
+          <p className="min-h-4 truncate text-xs text-muted-foreground/80">
+            {trackIndexLabel ?? '\u00A0'}
+          </p>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <Badge variant="secondary" className="rounded-full px-2 py-0 text-xs">
+            Track
+          </Badge>
+          {durationLabel && (
+            <Badge
+              variant="outline"
+              className="rounded-full border-dashed px-2 py-0 text-xs"
+            >
+              {durationLabel}
+            </Badge>
+          )}
+          {track.explicit && (
+            <Badge
+              variant="outline"
+              className="rounded-full border-rose-200 px-2 py-0 text-xs text-rose-600"
+            >
+              Explicit
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      <div className="shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="rounded-full px-3 text-xs font-semibold"
+            onClick={(event) => {
+              event.stopPropagation()
+              onRate()
+            }}
+          >
+            Rate
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            className="rounded-full px-3 text-xs font-semibold"
+            onClick={(event) => {
+              event.stopPropagation()
+              onAdd()
+            }}
+          >
+            + Add to list
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            className="h-9 w-9 rounded-full bg-[#1DB954] text-white hover:bg-[#1AA34A] disabled:bg-[#1DB954]/60 disabled:text-white/80"
+            aria-label="Open in Spotify"
+            disabled={!track.externalUrl}
+            onClick={(event) => {
+              event.stopPropagation()
+              onOpenSpotify()
+            }}
+          >
+            <SpotifyIcon className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </article>
   )
 }
 

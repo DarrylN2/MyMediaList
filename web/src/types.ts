@@ -25,6 +25,7 @@ export interface Media {
   posterUrl?: string
   backdropUrl?: string
   additionalImages?: string[]
+  externalUrl?: string
   provider: MediaProvider
   providerId: string
   description?: string

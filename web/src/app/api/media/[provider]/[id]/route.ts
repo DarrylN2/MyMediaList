@@ -46,6 +46,9 @@ export async function GET(
   ).toLowerCase()
 
   if (provider === 'spotify') {
+    type SpotifyImage = { url?: string } | null
+    type SpotifyArtist = { id: string; name?: string; images?: SpotifyImage[] }
+
     const kind = id.startsWith('track-')
       ? 'track'
       : id.startsWith('album-')
@@ -68,7 +71,7 @@ export async function GET(
           name?: string
           duration_ms?: number
           explicit?: boolean
-          artists?: Array<{ name?: string } | null>
+          artists?: Array<{ id: string; name?: string } | null>
           album?: {
             name?: string
             release_date?: string
@@ -100,6 +103,7 @@ export async function GET(
           title: track.name ?? 'Untitled',
           year,
           posterUrl: track.album?.images?.[0]?.url ?? undefined,
+          externalUrl: track.external_urls?.spotify ?? undefined,
           provider: 'spotify',
           providerId: `track-${track.id}`,
           durationMinutes,
@@ -119,27 +123,55 @@ export async function GET(
         name?: string
         release_date?: string
         total_tracks?: number
-        artists?: Array<{ name?: string } | null>
+        artists?: Array<{ id: string; name?: string } | null>
         images?: Array<{ url?: string } | null>
-        tracks?: { items?: Array<{ duration_ms?: number } | null> }
         external_urls?: { spotify?: string }
       }>(
         `https://api.spotify.com/v1/albums/${encodeURIComponent(spotifyId)}?market=US`,
+      )
+
+      const tracks = await spotifyFetchJson<{
+        items?: Array<{
+          id: string
+          name?: string
+          duration_ms?: number
+          explicit?: boolean
+          disc_number?: number
+          track_number?: number
+          preview_url?: string | null
+          artists?: Array<{ id: string; name?: string } | null>
+          external_urls?: { spotify?: string }
+        } | null>
+      }>(
+        `https://api.spotify.com/v1/albums/${encodeURIComponent(spotifyId)}/tracks?market=US&limit=50`,
       )
 
       const yearValue = album.release_date?.slice(0, 4)
       const year =
         yearValue && /^\d{4}$/.test(yearValue) ? Number(yearValue) : undefined
 
-      const totalDurationMs = (album.tracks?.items ?? []).reduce(
-        (acc, item) => {
-          const ms = item?.duration_ms
-          if (typeof ms === 'number' && Number.isFinite(ms) && ms > 0)
-            return acc + ms
-          return acc
-        },
-        0,
+      const trackItems = (tracks.items ?? []).filter(
+        (
+          item,
+        ): item is {
+          id: string
+          name?: string
+          duration_ms?: number
+          explicit?: boolean
+          disc_number?: number
+          track_number?: number
+          preview_url?: string | null
+          artists?: Array<{ id: string; name?: string } | null>
+          external_urls?: { spotify?: string }
+        } => Boolean(item?.id),
       )
+
+      const totalDurationMs = trackItems.reduce((acc, item) => {
+        const ms = item?.duration_ms
+        if (typeof ms === 'number' && Number.isFinite(ms) && ms > 0)
+          return acc + ms
+        return acc
+      }, 0)
 
       const durationMinutes =
         totalDurationMs > 0
@@ -151,12 +183,84 @@ export async function GET(
           .map((a) => a?.name ?? undefined)
           .filter((name): name is string => Boolean(name)) ?? []
 
+      const albumArtistIds = (album.artists ?? [])
+        .map((artist) => artist?.id ?? null)
+        .filter((artistId): artistId is string => Boolean(artistId))
+
+      const allArtistIds = new Set<string>(albumArtistIds)
+      for (const trackItem of trackItems) {
+        for (const trackArtist of trackItem.artists ?? []) {
+          const trackArtistId = trackArtist?.id
+          if (trackArtistId) allArtistIds.add(trackArtistId)
+        }
+      }
+
+      const artistsToFetch = Array.from(allArtistIds).slice(0, 50)
+      const artistDetailsById = new Map<string, SpotifyArtist>()
+
+      if (artistsToFetch.length > 0) {
+        const artistPayload = await spotifyFetchJson<{
+          artists?: SpotifyArtist[]
+        }>(
+          `https://api.spotify.com/v1/artists?ids=${encodeURIComponent(artistsToFetch.join(','))}`,
+        )
+
+        for (const artist of artistPayload.artists ?? []) {
+          if (artist?.id) {
+            artistDetailsById.set(artist.id, artist)
+          }
+        }
+      }
+
+      const albumArtistCredits = (album.artists ?? [])
+        .filter((credit): credit is { id: string; name?: string } =>
+          Boolean(credit?.id),
+        )
+        .map((credit) => {
+          const details = artistDetailsById.get(credit.id)
+          const imageUrl = details?.images?.[0]?.url
+          return {
+            id: credit.id,
+            name: credit.name ?? details?.name ?? 'Unknown artist',
+            role: 'Album artist',
+            imageUrl: imageUrl ?? undefined,
+          }
+        })
+
+      const trackArtistIds = new Set<string>()
+      for (const trackItem of trackItems) {
+        for (const trackArtist of trackItem.artists ?? []) {
+          const trackArtistId = trackArtist?.id
+          if (trackArtistId && !albumArtistIds.includes(trackArtistId)) {
+            trackArtistIds.add(trackArtistId)
+          }
+        }
+      }
+
+      const trackArtistCredits = Array.from(trackArtistIds)
+        .slice(0, 60)
+        .map((artistId) => {
+          const details = artistDetailsById.get(artistId)
+          const imageUrl = details?.images?.[0]?.url
+          return {
+            id: artistId,
+            name: details?.name ?? 'Unknown artist',
+            role: 'Track artist',
+            imageUrl: imageUrl ?? undefined,
+          }
+        })
+
       const media: Media = {
         id,
         type: 'album',
         title: album.name ?? 'Untitled',
         year,
         posterUrl: album.images?.[0]?.url ?? undefined,
+        additionalImages:
+          (album.images ?? [])
+            .map((img) => img?.url ?? null)
+            .filter((url): url is string => Boolean(url)) ?? [],
+        externalUrl: album.external_urls?.spotify ?? undefined,
         provider: 'spotify',
         providerId: `album-${album.id}`,
         durationMinutes,
@@ -165,9 +269,53 @@ export async function GET(
         directors: [],
         writers: [],
         cast: artists,
+        castMembers: [...albumArtistCredits, ...trackArtistCredits],
       }
 
-      return NextResponse.json({ media })
+      const albumTracks = trackItems.map((trackItem) => ({
+        id: trackItem.id,
+        title: trackItem.name ?? 'Untitled',
+        durationMs:
+          typeof trackItem.duration_ms === 'number' &&
+          Number.isFinite(trackItem.duration_ms)
+            ? Math.max(0, trackItem.duration_ms)
+            : null,
+        explicit: Boolean(trackItem.explicit),
+        discNumber:
+          typeof trackItem.disc_number === 'number' &&
+          Number.isFinite(trackItem.disc_number)
+            ? trackItem.disc_number
+            : null,
+        trackNumber:
+          typeof trackItem.track_number === 'number' &&
+          Number.isFinite(trackItem.track_number)
+            ? trackItem.track_number
+            : null,
+        previewUrl: trackItem.preview_url ?? null,
+        externalUrl: trackItem.external_urls?.spotify ?? null,
+        artists:
+          (trackItem.artists ?? [])
+            .map((artist) => {
+              if (!artist?.id) return null
+              const details = artistDetailsById.get(artist.id)
+              return {
+                id: artist.id,
+                name: artist.name ?? details?.name ?? 'Unknown artist',
+                imageUrl: details?.images?.[0]?.url ?? null,
+              }
+            })
+            .filter(
+              (
+                artist,
+              ): artist is {
+                id: string
+                name: string
+                imageUrl: string | null
+              } => Boolean(artist?.id),
+            ) ?? [],
+      }))
+
+      return NextResponse.json({ media, albumTracks })
     } catch (error) {
       console.error('Spotify media detail error', error)
       return NextResponse.json(
