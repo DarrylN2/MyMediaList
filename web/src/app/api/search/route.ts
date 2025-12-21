@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from 'next/server'
+﻿import { NextResponse, type NextRequest } from 'next/server'
 import type { MediaProvider, MediaType } from '@/types'
 import { buildIgdbImageUrl, igdbFetch } from '@/lib/igdb-server'
 import { spotifyFetchJson } from '@/lib/spotify-server'
@@ -416,11 +416,6 @@ async function searchIgdbGames(query: string): Promise<SearchResultItem[]> {
         ? new Date(game.first_release_date * 1000).getUTCFullYear()
         : undefined
 
-      const platforms = (game.platforms ?? [])
-        .map((platform) => platform?.name ?? undefined)
-        .filter((name): name is string => Boolean(name))
-      const platformLabel = platforms.slice(0, 3).join(', ')
-
       const companies = (game.involved_companies ?? [])
         .filter((entry) => Boolean(entry?.company?.name))
         .map((entry) => ({
@@ -436,15 +431,14 @@ async function searchIgdbGames(query: string): Promise<SearchResultItem[]> {
         .slice(0, 2)
         .join(', ')
 
-      const subtitle = [releaseYear, platformLabel, studioLabel]
-        .filter(Boolean)
-        .join(' | ')
+      const subtitleParts = [releaseYear, 'Game', studioLabel].filter(Boolean)
+      const subtitle = subtitleParts.join(' \u2022 ')
 
       const genres = (game.genres ?? [])
         .map((genre) => genre?.name ?? undefined)
         .filter((name): name is string => Boolean(name))
 
-      const tags = buildTagList([...genres, ...platforms])
+      const tags = genres.length > 0 ? genres.slice(0, 5) : ['Game']
 
       return {
         id: `igdb-game-${game.id}`,
@@ -583,7 +577,7 @@ function mapAniListAnimeToResult(entry: AniListMediaSummary): SearchResultItem {
   return {
     id: `anilist-anime-${entry.id}`,
     title,
-    subtitle: subtitleParts.join(' • '),
+    subtitle: subtitleParts.join(' â€¢ '),
     description: stripAniListDescription(entry.description),
     coverUrl: entry.coverImage?.large ?? undefined,
     tags,
@@ -633,7 +627,7 @@ function mapTmdbMovieToResult(
   return {
     id: `tmdb-${movie.id}`,
     title,
-    subtitle: subtitleParts.join(' • '),
+    subtitle: subtitleParts.join(' â€¢ '),
     description: movie.overview,
     coverUrl: movie.poster_path
       ? `${TMDB_IMAGE_BASE}${movie.poster_path}`
@@ -668,7 +662,7 @@ function mapTmdbTvToResult(
   return {
     id: `tmdb-tv-${show.id}`,
     title,
-    subtitle: subtitleParts.join(' • '),
+    subtitle: subtitleParts.join(' â€¢ '),
     description: show.overview,
     coverUrl: show.poster_path
       ? `${TMDB_IMAGE_BASE}${show.poster_path}`
@@ -771,7 +765,7 @@ async function searchSpotifyTracks(query: string): Promise<SearchResultItem[]> {
       return {
         id: `spotify-${providerId}`,
         title: track.name ?? 'Untitled',
-        subtitle: [artistLabel, year, 'Track'].filter(Boolean).join(' • '),
+        subtitle: [artistLabel, year, 'Track'].filter(Boolean).join(' â€¢ '),
         coverUrl: track.album?.images?.[0]?.url ?? undefined,
         tags,
         type: 'song',
@@ -815,7 +809,7 @@ async function searchSpotifyAlbums(query: string): Promise<SearchResultItem[]> {
       return {
         id: `spotify-${providerId}`,
         title: album.name ?? 'Untitled',
-        subtitle: [artistLabel, year, 'Album'].filter(Boolean).join(' • '),
+        subtitle: [artistLabel, year, 'Album'].filter(Boolean).join(' â€¢ '),
         coverUrl: album.images?.[0]?.url ?? undefined,
         tags,
         type: 'album',
