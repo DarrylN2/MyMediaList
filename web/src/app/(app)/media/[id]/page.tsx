@@ -212,6 +212,20 @@ export default function MediaDetailPage({
   const isSpotifyAlbum =
     media?.provider === 'spotify' && media?.type === 'album'
 
+  const albumHasMultipleDiscs = useMemo(() => {
+    if (!isSpotifyAlbum) return false
+    const discs = new Set<number>()
+    for (const track of albumTracks) {
+      if (
+        typeof track.discNumber === 'number' &&
+        Number.isFinite(track.discNumber)
+      ) {
+        discs.add(track.discNumber)
+      }
+    }
+    return discs.size > 1
+  }, [albumTracks, isSpotifyAlbum])
+
   const sortedAlbumTracks = useMemo(() => {
     if (!isSpotifyAlbum) return []
 
@@ -797,6 +811,7 @@ export default function MediaDetailPage({
                       key={track.id}
                       track={track}
                       coverUrl={media.posterUrl ?? null}
+                      showDiscNumber={albumHasMultipleDiscs}
                       onAdd={() => openTrackAdd(track)}
                       onRate={() => openTrackRateDialog(track)}
                       onOpenSpotify={() => openExternalUrl(track.externalUrl)}
@@ -868,39 +883,43 @@ export default function MediaDetailPage({
                 </div>
               ) : null}
 
-              <div className="flex items-start gap-3">
-                <Tags className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                <div className="flex-1">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Genres
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(media.genres ?? []).length > 0 ? (
-                      (media.genres ?? []).map((g) => (
-                        <Badge key={g} variant="outline">
-                          {g}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-sm text-muted-foreground">—</span>
-                    )}
+              {media.provider === 'spotify' ? null : (
+                <div className="flex items-start gap-3">
+                  <Tags className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Genres
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(media.genres ?? []).length > 0 ? (
+                        (media.genres ?? []).map((g) => (
+                          <Badge key={g} variant="outline">
+                            {g}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              <div className="flex items-start gap-3">
-                <Building2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                <div className="flex-1">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {media.type === 'tv' ? 'Networks' : 'Studios'}
-                  </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    {(media.studios ?? []).length > 0
-                      ? (media.studios ?? []).join(', ')
-                      : '—'}
+              {media.provider === 'spotify' ? null : (
+                <div className="flex items-start gap-3">
+                  <Building2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {media.type === 'tv' ? 'Networks' : 'Studios'}
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      {(media.studios ?? []).length > 0
+                        ? (media.studios ?? []).join(', ')
+                        : '-'}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
@@ -1353,24 +1372,29 @@ function formatDurationMs(durationMs: number | null): string | null {
 function AlbumTrackCard({
   track,
   coverUrl,
+  showDiscNumber,
   onAdd,
   onRate,
   onOpenSpotify,
 }: {
   track: SpotifyAlbumTrack
   coverUrl: string | null
+  showDiscNumber: boolean
   onAdd: () => void
   onRate: () => void
   onOpenSpotify: () => void
 }) {
   const durationLabel = formatDurationMs(track.durationMs)
   const artistLine = track.artists.map((artist) => artist.name).join(', ')
-  const trackIndexLabel =
-    track.discNumber && track.trackNumber
+  const trackIndexLabel = showDiscNumber
+    ? track.discNumber && track.trackNumber
       ? `D${track.discNumber} · ${track.trackNumber}`
       : track.trackNumber
         ? `${track.trackNumber}`
         : null
+    : track.trackNumber
+      ? `${track.trackNumber}`
+      : null
 
   return (
     <article className="group relative flex items-center gap-3 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-within:ring-2 focus-within:ring-indigo-500/40 sm:gap-4 sm:p-4">
