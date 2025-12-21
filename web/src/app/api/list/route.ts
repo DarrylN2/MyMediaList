@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase-server'
 import type { EntryStatus, Media, MediaProvider } from '@/types'
+import { igdbFetch } from '@/lib/igdb-server'
 import { spotifyFetchJson } from '@/lib/spotify-server'
 
 const TMDB_API_BASE = 'https://api.themoviedb.org/3'
@@ -28,6 +29,19 @@ interface PersistMediaPayload {
     rating?: number | null
     note?: string
   }
+}
+
+interface IgdbGameMetadata {
+  id: number
+  first_release_date?: number | null
+  url?: string | null
+  genres?: Array<{ name?: string | null } | null> | null
+  platforms?: Array<{ name?: string | null } | null> | null
+  involved_companies?: Array<{
+    developer?: boolean | null
+    publisher?: boolean | null
+    company?: { name?: string | null } | null
+  } | null> | null
 }
 
 export async function GET(request: NextRequest) {
@@ -233,6 +247,17 @@ type MediaRow = {
   metadata: unknown | null
 }
 
+async function fetchIgdbGameMetadata(gameId: number) {
+  const body = [
+    'fields id,first_release_date,genres.name,platforms.name,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,url;',
+    `where id = ${gameId};`,
+    'limit 1;',
+  ].join(' ')
+
+  const results = await igdbFetch<IgdbGameMetadata[]>('games', body)
+  return results?.[0] ?? null
+}
+
 async function resolveMediaMetadata(
   media: PersistMediaPayload['media'],
 ): Promise<{
@@ -416,6 +441,72 @@ async function resolveMediaMetadata(
               ? album.total_tracks
               : null,
           externalUrl: album.external_urls?.spotify ?? null,
+        },
+      }
+    } catch {
+      return { ...base, metadata: null }
+    }
+  }
+
+  if (media.provider === 'igdb') {
+    const isSupportedType = media.type === 'game'
+    if (!isSupportedType) return { ...base, metadata: null }
+
+    const numericId = Number(media.providerId)
+    if (!Number.isFinite(numericId)) return { ...base, metadata: null }
+
+    try {
+      const game = await fetchIgdbGameMetadata(numericId)
+      if (!game) return { ...base, metadata: null }
+
+      const year =
+        base.year ??
+        (game.first_release_date
+          ? new Date(game.first_release_date * 1000).getUTCFullYear()
+          : null)
+
+      const genres =
+        base.genres ??
+        (game.genres ?? [])
+          .map((genre) => genre?.name ?? undefined)
+          .filter((name): name is string => Boolean(name))
+
+      const platforms = (game.platforms ?? [])
+        .map((platform) => platform?.name ?? undefined)
+        .filter((name): name is string => Boolean(name))
+
+      const companies = (game.involved_companies ?? [])
+        .filter((entry) => Boolean(entry?.company?.name))
+        .map((entry) => ({
+          name: entry?.company?.name ?? '',
+          developer: Boolean(entry?.developer),
+          publisher: Boolean(entry?.publisher),
+        }))
+        .filter((entry) => Boolean(entry.name))
+
+      const developers = companies
+        .filter((entry) => entry.developer)
+        .map((entry) => entry.name)
+      const publishers = companies
+        .filter((entry) => entry.publisher)
+        .map((entry) => entry.name)
+
+      return {
+        year: Number.isFinite(year) ? (year as number) : null,
+        durationMinutes: base.durationMinutes,
+        genres: genres.length > 0 ? genres : null,
+        directors: base.directors,
+        writers: base.writers,
+        cast: base.cast,
+        metadata: {
+          provider: media.provider,
+          providerId: media.providerId,
+          year,
+          genres,
+          platforms,
+          developers,
+          publishers,
+          externalUrl: game.url ?? null,
         },
       }
     } catch {

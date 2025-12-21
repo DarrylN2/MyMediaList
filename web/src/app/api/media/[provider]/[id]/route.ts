@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import type { Media } from '@/types'
+import { buildIgdbImageUrl, igdbFetch } from '@/lib/igdb-server'
 import { spotifyFetchJson } from '@/lib/spotify-server'
 
 const TMDB_API_BASE = 'https://api.themoviedb.org/3'
@@ -33,6 +34,82 @@ function stripAniListDescription(
 
   const trimmed = decoded.trim()
   return trimmed.length > 0 ? trimmed : undefined
+}
+
+interface IgdbGameDetail {
+  id: number
+  name?: string
+  summary?: string | null
+  first_release_date?: number | null
+  url?: string | null
+  cover?: { image_id?: string | null } | null
+  genres?: Array<{ name?: string | null } | null> | null
+  platforms?: Array<{ name?: string | null } | null> | null
+  involved_companies?: Array<{
+    developer?: boolean | null
+    publisher?: boolean | null
+    company?: { name?: string | null } | null
+  } | null> | null
+  screenshots?: Array<{ image_id?: string | null } | null> | null
+}
+
+async function fetchIgdbGameDetail(
+  gameId: number,
+  routeId: string,
+): Promise<Media | null> {
+  const body = [
+    'fields id,name,summary,first_release_date,cover.image_id,genres.name,platforms.name,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,screenshots.image_id,url;',
+    `where id = ${gameId};`,
+    'limit 1;',
+  ].join(' ')
+
+  const results = await igdbFetch<IgdbGameDetail[]>('games', body)
+  const game = results?.[0]
+  if (!game) return null
+
+  const releaseYear = game.first_release_date
+    ? new Date(game.first_release_date * 1000).getUTCFullYear()
+    : undefined
+
+  const genres = (game.genres ?? [])
+    .map((genre) => genre?.name ?? undefined)
+    .filter((name): name is string => Boolean(name))
+
+  const companies = (game.involved_companies ?? [])
+    .filter((entry) => Boolean(entry?.company?.name))
+    .map((entry) => ({
+      name: entry?.company?.name ?? '',
+      developer: Boolean(entry?.developer),
+      publisher: Boolean(entry?.publisher),
+    }))
+    .filter((entry) => Boolean(entry.name))
+
+  const studios = companies
+    .filter((entry) => entry.developer || entry.publisher)
+    .map((entry) => entry.name)
+
+  const additionalImages = (game.screenshots ?? [])
+    .map((shot) => shot?.image_id ?? null)
+    .filter((imageId): imageId is string => Boolean(imageId))
+    .slice(0, 8)
+    .map((imageId) => buildIgdbImageUrl(imageId, 't_screenshot_big'))
+
+  return {
+    id: routeId,
+    type: 'game',
+    title: game.name ?? 'Untitled',
+    year: releaseYear,
+    posterUrl: game.cover?.image_id
+      ? buildIgdbImageUrl(game.cover.image_id, 't_cover_big')
+      : undefined,
+    additionalImages,
+    provider: 'igdb',
+    providerId: String(game.id ?? gameId),
+    description: game.summary ?? undefined,
+    externalUrl: game.url ?? undefined,
+    studios,
+    genres: genres.length > 0 ? genres : undefined,
+  }
 }
 
 export async function GET(
@@ -320,6 +397,34 @@ export async function GET(
       console.error('Spotify media detail error', error)
       return NextResponse.json(
         { error: 'Unexpected error while contacting Spotify.' },
+        { status: 500 },
+      )
+    }
+  }
+
+  if (provider === 'igdb') {
+    if (typeParam !== 'game') {
+      return NextResponse.json(
+        { error: `Unsupported media type '${typeParam}'.` },
+        { status: 400 },
+      )
+    }
+
+    const numericId = Number(id)
+    if (!Number.isFinite(numericId)) {
+      return NextResponse.json({ error: 'Invalid IGDB id.' }, { status: 400 })
+    }
+
+    try {
+      const media = await fetchIgdbGameDetail(numericId, id)
+      if (!media) {
+        return NextResponse.json({ error: 'Media not found.' }, { status: 404 })
+      }
+      return NextResponse.json({ media })
+    } catch (error) {
+      console.error('IGDB media detail error', error)
+      return NextResponse.json(
+        { error: 'Unexpected error while contacting IGDB.' },
         { status: 500 },
       )
     }

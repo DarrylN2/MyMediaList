@@ -46,7 +46,7 @@ import { toast } from 'sonner'
 
 type CategoryId = 'movies' | 'tv' | 'anime' | 'tracks' | 'albums' | 'games'
 type CategoryFilter = 'all' | CategoryId
-type LiveCategoryType = 'movie' | 'tv' | 'anime' | 'track' | 'album'
+type LiveCategoryType = 'movie' | 'tv' | 'anime' | 'track' | 'album' | 'game'
 
 const LIVE_CATEGORY_LABELS: Record<LiveCategoryType, string> = {
   movie: 'Movies',
@@ -54,6 +54,7 @@ const LIVE_CATEGORY_LABELS: Record<LiveCategoryType, string> = {
   anime: 'Anime',
   track: 'Tracks',
   album: 'Albums',
+  game: 'Games',
 }
 
 function parseCategoryFilter(raw: string | null): CategoryFilter {
@@ -115,25 +116,7 @@ const typeIconMap: Record<MediaType, LucideIcon> = {
   game: Gamepad2,
 }
 
-const STATIC_COLLECTION: SearchCategory[] = [
-  {
-    id: 'games',
-    title: 'Games',
-    helper: 'Jump straight into Runeterra',
-    items: [
-      {
-        id: 'league-of-legends',
-        title: 'League of Legends',
-        subtitle: '2009 • MOBA • Riot Games',
-        description:
-          'Where the stories of Vi, Jinx, Caitlyn, and Viktor began.',
-        tags: ['PC', 'Multiplayer'],
-        type: 'game',
-      },
-    ],
-  },
-]
-
+const STATIC_COLLECTION: SearchCategory[] = []
 const CATEGORY_FILTERS: { id: CategoryFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'movies', label: 'Movies' },
@@ -176,6 +159,13 @@ const ALBUMS_CATEGORY_BASE: SearchCategory = {
   id: 'albums',
   title: 'Albums',
   helper: 'Live data from Spotify',
+  items: [],
+}
+
+const GAMES_CATEGORY_BASE: SearchCategory = {
+  id: 'games',
+  title: 'Games',
+  helper: 'Live data from IGDB',
   items: [],
 }
 
@@ -232,6 +222,8 @@ function SearchPageClient() {
     useState<SearchCategory>(TRACKS_CATEGORY_BASE)
   const [albumsCategory, setAlbumsCategory] =
     useState<SearchCategory>(ALBUMS_CATEGORY_BASE)
+  const [gamesCategory, setGamesCategory] =
+    useState<SearchCategory>(GAMES_CATEGORY_BASE)
   const [isLoading, setIsLoading] = useState(false)
   const [categoryErrors, setCategoryErrors] = useState<
     Partial<Record<LiveCategoryType, string>>
@@ -334,6 +326,7 @@ function SearchPageClient() {
       setAnimeCategory(ANIME_CATEGORY_BASE)
       setTracksCategory(TRACKS_CATEGORY_BASE)
       setAlbumsCategory(ALBUMS_CATEGORY_BASE)
+      setGamesCategory(GAMES_CATEGORY_BASE)
       setCategoryErrors({})
       setIsLoading(false)
       return
@@ -345,6 +338,7 @@ function SearchPageClient() {
     setAnimeCategory(ANIME_CATEGORY_BASE)
     setTracksCategory(TRACKS_CATEGORY_BASE)
     setAlbumsCategory(ALBUMS_CATEGORY_BASE)
+    setGamesCategory(GAMES_CATEGORY_BASE)
     setIsLoading(true)
     setCategoryErrors({})
 
@@ -386,8 +380,13 @@ function SearchPageClient() {
             ...current,
             items: payload.items,
           }))
-        } else {
+        } else if (categoryType === 'album') {
           setAlbumsCategory((current) => ({
+            ...current,
+            items: payload.items,
+          }))
+        } else {
+          setGamesCategory((current) => ({
             ...current,
             items: payload.items,
           }))
@@ -415,6 +414,7 @@ function SearchPageClient() {
     tasks.push(fetchCategory('anime'))
     tasks.push(fetchCategory('track'))
     tasks.push(fetchCategory('album'))
+    tasks.push(fetchCategory('game'))
 
     if (tasks.length === 0) {
       setIsLoading(false)
@@ -467,6 +467,10 @@ function SearchPageClient() {
       categories.push(albumsCategory)
     }
 
+    if (gamesCategory.items.length > 0) {
+      categories.push(gamesCategory)
+    }
+
     categories.push(...filteredStaticCategories)
 
     return categories
@@ -476,6 +480,7 @@ function SearchPageClient() {
     animeCategory,
     tracksCategory,
     albumsCategory,
+    gamesCategory,
     filteredStaticCategories,
   ])
 

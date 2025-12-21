@@ -40,7 +40,7 @@ import type { EntryStatus, Media } from '@/types'
 
 interface ParsedMediaId {
   provider: string
-  type: 'movie' | 'tv' | 'anime' | 'song' | 'album'
+  type: 'movie' | 'tv' | 'anime' | 'song' | 'album' | 'game'
   sourceId: string
 }
 
@@ -1515,6 +1515,13 @@ function parseMediaRouteId(routeId: string): ParsedMediaId | null {
       type: maybeType === 'album' ? 'album' : 'song',
       sourceId,
     }
+  }
+
+  if (provider === 'igdb') {
+    if (maybeType !== 'game' || !maybeId) {
+      return null
+    }
+    return { provider, type: 'game', sourceId: maybeId }
   }
 
   if (provider === 'anilist') {

@@ -80,6 +80,9 @@ function buildMediaRouteId(media: {
   if (media.source === 'anilist') {
     return `anilist-anime-${media.source_id}`
   }
+  if (media.source === 'igdb') {
+    return `igdb-game-${media.source_id}`
+  }
   return `${media.source}-${media.source_id}`
 }
 

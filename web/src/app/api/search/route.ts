@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import type { MediaProvider, MediaType } from '@/types'
+import { buildIgdbImageUrl, igdbFetch } from '@/lib/igdb-server'
 import { spotifyFetchJson } from '@/lib/spotify-server'
 
 const TMDB_API_BASE = 'https://api.themoviedb.org/3'
@@ -10,13 +11,14 @@ const TMDB_ENDPOINTS = {
   tv: 'search/tv',
 } as const
 type TmdbSearchType = keyof typeof TMDB_ENDPOINTS
-type SearchType = TmdbSearchType | 'anime' | 'track' | 'album'
+type SearchType = TmdbSearchType | 'anime' | 'track' | 'album' | 'game'
 const SUPPORTED_TYPES = new Set<SearchType>([
   'movie',
   'tv',
   'anime',
   'track',
   'album',
+  'game',
 ])
 const FALLBACK_TAG = 'Search'
 const TMDB_DETAIL_LIMIT = 10
@@ -86,6 +88,11 @@ function buildGenreTags(
     .filter((v): v is string => Boolean(v))
     .slice(0, 5)
   return names.length ? names : [FALLBACK_TAG]
+}
+
+function buildTagList(values: Array<string | undefined>, limit = 5) {
+  const tags = values.filter((value): value is string => Boolean(value))
+  return tags.slice(0, limit).length ? tags.slice(0, limit) : [FALLBACK_TAG]
 }
 
 async function getTmdbMovieRuntimeMinutes(id: number, apiKey: string) {
@@ -240,6 +247,20 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  if (type === 'game') {
+    try {
+      const items = await searchIgdbGames(query)
+      return NextResponse.json<SearchResponse>({ query, type, items })
+    } catch (error) {
+      console.error('IGDB search error', error)
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Unexpected error while contacting IGDB.'
+      return NextResponse.json({ error: message }, { status: 500 })
+    }
+  }
+
   if (type === 'track' || type === 'album') {
     try {
       const items =
@@ -350,6 +371,97 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     )
   }
+}
+
+interface IgdbGameSummary {
+  id: number
+  name?: string
+  summary?: string | null
+  first_release_date?: number | null
+  url?: string | null
+  cover?: { image_id?: string | null } | null
+  genres?: Array<{ name?: string | null } | null> | null
+  platforms?: Array<{ name?: string | null } | null> | null
+  involved_companies?: Array<{
+    developer?: boolean | null
+    publisher?: boolean | null
+    company?: { name?: string | null } | null
+  } | null> | null
+}
+
+async function searchIgdbGames(query: string): Promise<SearchResultItem[]> {
+  const safeQuery = query.replace(/"/g, '')
+  const baseFields =
+    'fields id,name,summary,first_release_date,cover.image_id,genres.name,platforms.name,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,url;'
+  const baseSearch = `search "${safeQuery}";`
+
+  const primaryBody = [
+    baseSearch,
+    baseFields,
+    'where category = 0;',
+    'limit 20;',
+  ].join(' ')
+
+  let results = await igdbFetch<IgdbGameSummary[]>('games', primaryBody)
+
+  if (!results || results.length === 0) {
+    const fallbackBody = [baseSearch, baseFields, 'limit 20;'].join(' ')
+    results = await igdbFetch<IgdbGameSummary[]>('games', fallbackBody)
+  }
+
+  return (results ?? [])
+    .filter((game) => typeof game?.id === 'number')
+    .map((game) => {
+      const releaseYear = game.first_release_date
+        ? new Date(game.first_release_date * 1000).getUTCFullYear()
+        : undefined
+
+      const platforms = (game.platforms ?? [])
+        .map((platform) => platform?.name ?? undefined)
+        .filter((name): name is string => Boolean(name))
+      const platformLabel = platforms.slice(0, 3).join(', ')
+
+      const companies = (game.involved_companies ?? [])
+        .filter((entry) => Boolean(entry?.company?.name))
+        .map((entry) => ({
+          name: entry?.company?.name ?? '',
+          developer: Boolean(entry?.developer),
+          publisher: Boolean(entry?.publisher),
+        }))
+        .filter((entry) => Boolean(entry.name))
+
+      const studioLabel = companies
+        .filter((entry) => entry.developer || entry.publisher)
+        .map((entry) => entry.name)
+        .slice(0, 2)
+        .join(', ')
+
+      const subtitle = [releaseYear, platformLabel, studioLabel]
+        .filter(Boolean)
+        .join(' | ')
+
+      const genres = (game.genres ?? [])
+        .map((genre) => genre?.name ?? undefined)
+        .filter((name): name is string => Boolean(name))
+
+      const tags = buildTagList([...genres, ...platforms])
+
+      return {
+        id: `igdb-game-${game.id}`,
+        title: game.name ?? 'Untitled',
+        subtitle: subtitle || 'Game',
+        description: game.summary ?? undefined,
+        coverUrl: game.cover?.image_id
+          ? buildIgdbImageUrl(game.cover.image_id, 't_cover_big')
+          : undefined,
+        tags,
+        type: 'game',
+        provider: 'igdb',
+        providerId: String(game.id),
+        externalUrl: game.url ?? undefined,
+        year: releaseYear,
+      }
+    })
 }
 
 interface AniListSearchResponse {

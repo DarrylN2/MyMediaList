@@ -101,6 +101,9 @@ function buildMediaRouteId(media: {
   if (media.provider === 'anilist') {
     return `anilist-anime-${media.providerId}`
   }
+  if (media.provider === 'igdb') {
+    return `igdb-game-${media.providerId}`
+  }
   return `${media.provider}-${media.providerId}`
 }
 
