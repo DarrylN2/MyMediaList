@@ -17,6 +17,16 @@ export interface PersonCredit {
   imageUrl?: string
 }
 
+export interface MediaPreview {
+  id: string
+  type: MediaType
+  title: string
+  year?: number
+  posterUrl?: string
+  provider: MediaProvider
+  providerId: string
+}
+
 export interface Media {
   id: string
   type: MediaType
@@ -39,8 +49,19 @@ export interface Media {
   creatorCredits?: PersonCredit[]
   writerCredits?: PersonCredit[]
   producerCredits?: PersonCredit[]
+  composerCredits?: PersonCredit[]
+  artDirectorCredits?: PersonCredit[]
   studios?: string[]
   genres?: string[]
+  platforms?: string[]
+  developers?: string[]
+  publishers?: string[]
+  gameModes?: string[]
+  videos?: Array<{ name?: string; videoId?: string }>
+  artworkImages?: string[]
+  dlcs?: MediaPreview[]
+  expansions?: MediaPreview[]
+  similarGames?: MediaPreview[]
 }
 
 export interface Entry {

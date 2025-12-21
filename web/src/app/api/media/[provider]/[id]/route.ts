@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import type { Media } from '@/types'
+import type { Media, MediaPreview } from '@/types'
 import { buildIgdbImageUrl, igdbFetch } from '@/lib/igdb-server'
 import { spotifyFetchJson } from '@/lib/spotify-server'
 
@@ -45,12 +45,76 @@ interface IgdbGameDetail {
   cover?: { image_id?: string | null } | null
   genres?: Array<{ name?: string | null } | null> | null
   platforms?: Array<{ name?: string | null } | null> | null
+  game_modes?: Array<{ name?: string | null } | null> | null
   involved_companies?: Array<{
     developer?: boolean | null
     publisher?: boolean | null
     company?: { name?: string | null } | null
   } | null> | null
   screenshots?: Array<{ image_id?: string | null } | null> | null
+  artworks?: Array<{ image_id?: string | null } | null> | null
+  videos?: Array<{
+    video_id?: string | null
+    name?: string | null
+  } | null> | null
+  dlcs?: Array<IgdbRelatedGame | null> | null
+  expansions?: Array<IgdbRelatedGame | null> | null
+  similar_games?: Array<IgdbRelatedGame | null> | null
+}
+
+interface IgdbRelatedGame {
+  id?: number | null
+  name?: string | null
+  first_release_date?: number | null
+  cover?: { image_id?: string | null } | null
+}
+
+const MAJOR_PLATFORM_MATCHERS: Array<{ label: string; match: RegExp[] }> = [
+  { label: 'PC', match: [/^pc$/i, /pc \(microsoft windows\)/i] },
+  { label: 'PS5', match: [/playstation 5/i] },
+  { label: 'PS4', match: [/playstation 4/i] },
+  { label: 'Xbox Series X|S', match: [/xbox series/i] },
+  { label: 'Xbox One', match: [/xbox one/i] },
+  { label: 'Switch', match: [/nintendo switch/i] },
+  { label: 'Mobile', match: [/^android$/i, /^ios$/i, /iphone/i, /ipad/i] },
+]
+
+function mapMajorPlatforms(platforms: string[]): string[] {
+  const matched = new Set<string>()
+  for (const platform of platforms) {
+    for (const { label, match } of MAJOR_PLATFORM_MATCHERS) {
+      if (match.some((matcher) => matcher.test(platform))) {
+        matched.add(label)
+        break
+      }
+    }
+  }
+  return Array.from(matched)
+}
+
+function mapIgdbRelatedGames(
+  items: Array<IgdbRelatedGame | null> | null | undefined,
+): MediaPreview[] {
+  return (items ?? [])
+    .map((item) => {
+      if (!item?.id || !item?.name) return null
+      const year = item.first_release_date
+        ? new Date(item.first_release_date * 1000).getUTCFullYear()
+        : undefined
+      return {
+        id: `igdb-game-${item.id}`,
+        type: 'game',
+        title: item.name,
+        year,
+        posterUrl: item.cover?.image_id
+          ? buildIgdbImageUrl(item.cover.image_id, 't_cover_big')
+          : undefined,
+        provider: 'igdb',
+        providerId: String(item.id),
+      }
+    })
+    .filter((item): item is MediaPreview => item != null)
+    .slice(0, 12)
 }
 
 async function fetchIgdbGameDetail(
@@ -58,7 +122,13 @@ async function fetchIgdbGameDetail(
   routeId: string,
 ): Promise<Media | null> {
   const body = [
-    'fields id,name,summary,first_release_date,cover.image_id,genres.name,platforms.name,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,screenshots.image_id,url;',
+    'fields id,name,summary,first_release_date,cover.image_id,genres.name,platforms.name,game_modes.name,',
+    'involved_companies.company.name,involved_companies.developer,involved_companies.publisher,',
+    'screenshots.image_id,artworks.image_id,videos.video_id,videos.name,',
+    'dlcs.name,dlcs.cover.image_id,dlcs.first_release_date,',
+    'expansions.name,expansions.cover.image_id,expansions.first_release_date,',
+    'similar_games.name,similar_games.cover.image_id,similar_games.first_release_date,',
+    'url;',
     `where id = ${gameId};`,
     'limit 1;',
   ].join(' ')
@@ -75,6 +145,14 @@ async function fetchIgdbGameDetail(
     .map((genre) => genre?.name ?? undefined)
     .filter((name): name is string => Boolean(name))
 
+  const platforms = (game.platforms ?? [])
+    .map((platform) => platform?.name ?? undefined)
+    .filter((name): name is string => Boolean(name))
+
+  const gameModes = (game.game_modes ?? [])
+    .map((mode) => mode?.name ?? undefined)
+    .filter((name): name is string => Boolean(name))
+
   const companies = (game.involved_companies ?? [])
     .filter((entry) => Boolean(entry?.company?.name))
     .map((entry) => ({
@@ -84,15 +162,43 @@ async function fetchIgdbGameDetail(
     }))
     .filter((entry) => Boolean(entry.name))
 
-  const studios = companies
-    .filter((entry) => entry.developer || entry.publisher)
+  const developers = companies
+    .filter((entry) => entry.developer)
     .map((entry) => entry.name)
+
+  const publishers = companies
+    .filter((entry) => entry.publisher)
+    .map((entry) => entry.name)
+
+  const studios = [...new Set([...developers, ...publishers])]
 
   const additionalImages = (game.screenshots ?? [])
     .map((shot) => shot?.image_id ?? null)
     .filter((imageId): imageId is string => Boolean(imageId))
     .slice(0, 8)
     .map((imageId) => buildIgdbImageUrl(imageId, 't_screenshot_big'))
+
+  const artworkImages = (game.artworks ?? [])
+    .map((artwork) => artwork?.image_id ?? null)
+    .filter((imageId): imageId is string => Boolean(imageId))
+    .slice(0, 8)
+    .map((imageId) => buildIgdbImageUrl(imageId, 't_1080p'))
+
+  const videos =
+    (game.videos ?? [])
+      .map((video) => {
+        const videoId = video?.video_id ?? undefined
+        if (!videoId) return null
+        return {
+          videoId,
+          name: video?.name ?? undefined,
+        }
+      })
+      .filter((video): video is { videoId: string; name?: string } =>
+        Boolean(video?.videoId),
+      ) ?? []
+
+  const backdropUrl = artworkImages[0] ?? additionalImages[0]
 
   return {
     id: routeId,
@@ -102,13 +208,23 @@ async function fetchIgdbGameDetail(
     posterUrl: game.cover?.image_id
       ? buildIgdbImageUrl(game.cover.image_id, 't_cover_big')
       : undefined,
+    backdropUrl,
     additionalImages,
+    artworkImages,
     provider: 'igdb',
     providerId: String(game.id ?? gameId),
     description: game.summary ?? undefined,
     externalUrl: game.url ?? undefined,
     studios,
+    developers,
+    publishers,
     genres: genres.length > 0 ? genres : undefined,
+    platforms: mapMajorPlatforms(platforms),
+    gameModes: gameModes.length > 0 ? gameModes : undefined,
+    dlcs: mapIgdbRelatedGames(game.dlcs),
+    expansions: mapIgdbRelatedGames(game.expansions),
+    similarGames: mapIgdbRelatedGames(game.similar_games),
+    videos,
   }
 }
 

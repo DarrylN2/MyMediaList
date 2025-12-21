@@ -1,18 +1,24 @@
 'use client'
 
-import { use, useEffect, useMemo, useState } from 'react'
+import { use, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import Image from 'next/image'
 import {
   ArrowUpDown,
   Building2,
+  Calendar,
   Clock,
+  Gamepad2,
+  Layers,
   Music2,
+  Play,
   Tags,
   Tv,
   Users,
 } from 'lucide-react'
 import { RatingStars } from '@/components/RatingStars'
 import { StatusSelect } from '@/components/StatusSelect'
+import { MediaCard } from '@/components/MediaCard'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -617,6 +623,26 @@ export default function MediaDetailPage({
         imageUrl: credit.imageUrl,
       })) ?? []
 
+  const composerCredits =
+    (media.composerCredits ?? [])
+      .filter((credit) => Boolean(credit?.name))
+      .map((credit) => ({
+        id: credit.id,
+        name: credit.name,
+        role: credit.role,
+        imageUrl: credit.imageUrl,
+      })) ?? []
+
+  const artDirectorCredits =
+    (media.artDirectorCredits ?? [])
+      .filter((credit) => Boolean(credit?.name))
+      .map((credit) => ({
+        id: credit.id,
+        name: credit.name,
+        role: credit.role,
+        imageUrl: credit.imageUrl,
+      })) ?? []
+
   const creatorFallback = (media.directors ?? [])
     .filter(Boolean)
     .map((name) => ({
@@ -640,21 +666,40 @@ export default function MediaDetailPage({
     writerCredits.length > 0 ? writerCredits : writerFallback
   ).slice(0, 30)
   const producers = producerCredits.slice(0, 30)
+  const composers = composerCredits.slice(0, 30)
+  const artDirectors = artDirectorCredits.slice(0, 30)
+
+  const gamePlatforms = (media.platforms ?? []).filter(Boolean)
+  const gameModes = (media.gameModes ?? []).filter(Boolean)
+  const gameDevelopers = (media.developers ?? []).filter(Boolean)
+  const gamePublishers = (media.publishers ?? []).filter(Boolean)
+  const gameVideos = (media.videos ?? []).filter(Boolean)
+  const gameScreenshots = (media.additionalImages ?? []).filter(Boolean)
+  const gameArtworks = (media.artworkImages ?? []).filter(Boolean)
+  const dlcs = media.dlcs ?? []
+  const expansions = media.expansions ?? []
+  const similarGames = media.similarGames ?? []
+
+  const hasCredits =
+    creators.length > 0 ||
+    writers.length > 0 ||
+    composers.length > 0 ||
+    artDirectors.length > 0 ||
+    producers.length > 0
 
   return (
     <div className="space-y-8">
-      {/* Hero section (backdrop + header content on top) */}
-      <div className="relative left-1/2 right-1/2 -mx-[50vw] -mt-6 w-screen overflow-hidden">
-        {/* Backdrop background */}
+      <div className="relative">
+        {/* Backdrop that extends beyond the hero */}
         {media.backdropUrl ? (
-          <div className="absolute inset-0">
+          <div className="pointer-events-none absolute left-1/2 top-0 -ml-[50vw] h-[72vh] w-screen">
             <div
               className="absolute inset-0"
               style={{
                 WebkitMaskImage:
-                  'linear-gradient(to bottom, black 0%, black 70%, transparent 100%)',
+                  'linear-gradient(to bottom, black 0%, black 55%, transparent 100%)',
                 maskImage:
-                  'linear-gradient(to bottom, black 0%, black 70%, transparent 100%)',
+                  'linear-gradient(to bottom, black 0%, black 55%, transparent 100%)',
               }}
             >
               <Image
@@ -666,524 +711,842 @@ export default function MediaDetailPage({
                 priority
               />
             </div>
-
-            {/* Light wash so text stays readable; fades out into page background */}
-            <div className="absolute inset-0 bg-gradient-to-b from-background/0 via-background/25 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-b from-background/0 via-background/20 to-transparent" />
           </div>
         ) : null}
 
-        {/* Content aligned to main container */}
-        <div className="relative mx-auto max-w-7xl px-4 pt-10 pb-12">
-          <div className="grid gap-6 md:grid-cols-[300px_1fr]">
-            <div className="relative mx-auto w-full max-w-[300px] overflow-hidden rounded-2xl border bg-card shadow-sm aspect-[2/3] md:mx-0">
-              {media.posterUrl ? (
-                <Image
-                  src={media.posterUrl}
-                  alt={media.title}
-                  fill
-                  className="object-cover"
-                  sizes="300px"
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center bg-muted">
-                  <span className="text-muted-foreground">No poster</span>
-                </div>
-              )}
-            </div>
-
-            <div
-              className={
-                media.backdropUrl
-                  ? 'flex flex-col justify-center gap-4 rounded-3xl bg-background/6 p-6 backdrop-blur-md'
-                  : 'flex flex-col justify-center gap-4'
-              }
-            >
-              <div>
-                <h1 className="text-4xl font-bold tracking-tight drop-shadow-md sm:text-5xl">
-                  {media.title}
-                </h1>
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-foreground/75">
-                  <Badge variant="secondary" className="uppercase">
-                    {media.type}
-                  </Badge>
-                  {media.year ? (
-                    <Badge variant="outline">{media.year}</Badge>
-                  ) : null}
-                  {(media.type === 'tv' || media.type === 'anime') &&
-                  media.episodeCount ? (
-                    <Badge variant="outline">{media.episodeCount} eps</Badge>
-                  ) : null}
-                  {media.contentRating ? (
-                    <Badge variant="outline" className="tracking-wide">
-                      {media.contentRating}
-                    </Badge>
-                  ) : null}
-                  {media.provider === 'spotify' && media.externalUrl ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-7 rounded-full bg-[#1DB954] px-3 text-xs font-semibold text-white hover:bg-[#1AA34A]"
-                      onClick={() => openExternalUrl(media.externalUrl)}
-                    >
-                      <SpotifyIcon className="h-4 w-4" />
-                      Spotify
-                    </Button>
-                  ) : null}
-                </div>
+        {/* Hero section (backdrop + header content on top) */}
+        <div className="relative left-1/2 right-1/2 -mx-[50vw] -mt-6 w-screen overflow-hidden">
+          {/* Content aligned to main container */}
+          <div className="relative mx-auto max-w-7xl px-4 pt-10 pb-12">
+            <div className="grid gap-6 md:grid-cols-[300px_1fr]">
+              <div className="relative mx-auto w-full max-w-[300px] overflow-hidden rounded-2xl border bg-card shadow-sm aspect-[2/3] md:mx-0">
+                {media.posterUrl ? (
+                  <Image
+                    src={media.posterUrl}
+                    alt={media.title}
+                    fill
+                    className="object-cover"
+                    sizes="300px"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center bg-muted">
+                    <span className="text-muted-foreground">No poster</span>
+                  </div>
+                )}
               </div>
 
-              {(media.type === 'album' || media.type === 'song') &&
-              (media.cast ?? []).length > 0 ? (
-                <p className="text-sm text-foreground/75">
-                  {media.cast?.join(', ')}
-                </p>
-              ) : null}
+              <div
+                className={
+                  media.backdropUrl
+                    ? 'flex flex-col justify-center gap-4 rounded-3xl bg-background/6 p-6 backdrop-blur-md'
+                    : 'flex flex-col justify-center gap-4'
+                }
+              >
+                <div>
+                  <h1 className="text-4xl font-bold tracking-tight drop-shadow-md sm:text-5xl">
+                    {media.title}
+                  </h1>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-foreground/75">
+                    <Badge variant="secondary" className="uppercase">
+                      {media.type}
+                    </Badge>
+                    {media.year ? (
+                      <Badge variant="outline">{media.year}</Badge>
+                    ) : null}
+                    {(media.type === 'tv' || media.type === 'anime') &&
+                    media.episodeCount ? (
+                      <Badge variant="outline">{media.episodeCount} eps</Badge>
+                    ) : null}
+                    {media.contentRating ? (
+                      <Badge variant="outline" className="tracking-wide">
+                        {media.contentRating}
+                      </Badge>
+                    ) : null}
+                    {media.provider === 'spotify' && media.externalUrl ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 rounded-full bg-[#1DB954] px-3 text-xs font-semibold text-white hover:bg-[#1AA34A]"
+                        onClick={() => openExternalUrl(media.externalUrl)}
+                      >
+                        <SpotifyIcon className="h-4 w-4" />
+                        Spotify
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
 
-              {cleanDescription ? (
-                <p className="max-w-3xl text-base leading-relaxed text-foreground/85">
-                  {cleanDescription}
-                </p>
-              ) : null}
+                {(media.type === 'album' || media.type === 'song') &&
+                (media.cast ?? []).length > 0 ? (
+                  <p className="text-sm text-foreground/75">
+                    {media.cast?.join(', ')}
+                  </p>
+                ) : null}
+
+                {cleanDescription ? (
+                  <p className="max-w-3xl text-base leading-relaxed text-foreground/85">
+                    {cleanDescription}
+                  </p>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Main content */}
-      <div className="grid gap-8 lg:grid-cols-[1fr_420px]">
-        {/* Left column */}
-        <div className="space-y-8">
-          {isSpotifyAlbum ? (
+        {/* Main content */}
+        <div className="grid gap-8 lg:grid-cols-[1fr_420px]">
+          {/* Left column */}
+          <div className="min-w-0 space-y-8">
+            {isSpotifyAlbum ? (
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold">Tracks</h2>
+                      <div className="text-sm text-muted-foreground">
+                        {albumTracks.length > 0
+                          ? `${albumTracks.length} tracks`
+                          : 'No tracks found.'}
+                      </div>
+                    </div>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                        >
+                          <ArrowUpDown className="h-4 w-4" />
+                          Sort
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Sort tracks</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuRadioGroup
+                          value={trackSort}
+                          onValueChange={(value) =>
+                            setTrackSort(value as AlbumTrackSort)
+                          }
+                        >
+                          <DropdownMenuRadioItem value="album">
+                            Album order
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="title">
+                            Title (A–Z)
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="artist">
+                            Artist (A–Z)
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="duration">
+                            Duration (longest)
+                          </DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {sortedAlbumTracks.length > 0 ? (
+                    sortedAlbumTracks.map((track) => (
+                      <AlbumTrackCard
+                        key={track.id}
+                        track={track}
+                        coverUrl={media.posterUrl ?? null}
+                        showDiscNumber={albumHasMultipleDiscs}
+                        onAdd={() => openTrackAdd(track)}
+                        onRate={() => openTrackRateDialog(track)}
+                        onOpenSpotify={() => openExternalUrl(track.externalUrl)}
+                      />
+                    ))
+                  ) : (
+                    <div className="text-sm text-muted-foreground">
+                      Tracks aren’t available for this album yet.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
+
             <Card>
               <CardHeader>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold">Tracks</h2>
-                    <div className="text-sm text-muted-foreground">
-                      {albumTracks.length > 0
-                        ? `${albumTracks.length} tracks`
-                        : 'No tracks found.'}
+                <h2 className="text-lg font-semibold">Key Details</h2>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {media.type === 'game' ? (
+                  <div className="flex items-start gap-3">
+                    <Calendar className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Release year
+                      </div>
+                      <div className="text-base font-medium">
+                        {media.year ?? '—'}
+                      </div>
                     </div>
                   </div>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="gap-2"
-                      >
-                        <ArrowUpDown className="h-4 w-4" />
-                        Sort
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Sort tracks</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuRadioGroup
-                        value={trackSort}
-                        onValueChange={(value) =>
-                          setTrackSort(value as AlbumTrackSort)
-                        }
-                      >
-                        <DropdownMenuRadioItem value="album">
-                          Album order
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="title">
-                          Title (A–Z)
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="artist">
-                          Artist (A–Z)
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="duration">
-                          Duration (longest)
-                        </DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {sortedAlbumTracks.length > 0 ? (
-                  sortedAlbumTracks.map((track) => (
-                    <AlbumTrackCard
-                      key={track.id}
-                      track={track}
-                      coverUrl={media.posterUrl ?? null}
-                      showDiscNumber={albumHasMultipleDiscs}
-                      onAdd={() => openTrackAdd(track)}
-                      onRate={() => openTrackRateDialog(track)}
-                      onOpenSpotify={() => openExternalUrl(track.externalUrl)}
-                    />
-                  ))
                 ) : (
-                  <div className="text-sm text-muted-foreground">
-                    Tracks aren’t available for this album yet.
+                  <div className="flex items-start gap-3">
+                    <Clock className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {media.type === 'tv'
+                          ? 'Episode length'
+                          : media.type === 'anime'
+                            ? 'Episodes'
+                            : 'Runtime'}
+                      </div>
+                      <div className="text-base font-medium">
+                        {media.type === 'anime'
+                          ? media.episodeCount
+                            ? `${media.episodeCount} episodes`
+                            : '—'
+                          : media.durationMinutes
+                            ? `${media.durationMinutes} minutes`
+                            : '—'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {media.type === 'album' ? (
+                  <div className="flex items-start gap-3">
+                    <Music2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Tracks
+                      </div>
+                      <div className="text-base font-medium">
+                        {albumTracks.length > 0
+                          ? `${albumTracks.length} tracks`
+                          : 'ƒ?"'}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {media.type === 'tv' && media.episodeCount ? (
+                  <div className="flex items-start gap-3">
+                    <Tv className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Episodes
+                      </div>
+                      <div className="text-base font-medium">
+                        {media.episodeCount} episodes
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {media.provider === 'spotify' ? null : (
+                  <div className="flex items-start gap-3">
+                    <Tags className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                    <div className="flex-1">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Genres
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {(media.genres ?? []).length > 0 ? (
+                          (media.genres ?? []).map((g) => (
+                            <Badge key={g} variant="outline">
+                              {g}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            -
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {media.type === 'game' ? (
+                  <div className="flex items-start gap-3">
+                    <Gamepad2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                    <div className="flex-1">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Platforms
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {gamePlatforms.length > 0 ? (
+                          gamePlatforms.map((platform) => (
+                            <Badge key={platform} variant="outline">
+                              {platform}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            —
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {media.type === 'game' ? (
+                  <div className="flex items-start gap-3">
+                    <Layers className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                    <div className="flex-1">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Game modes
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {gameModes.length > 0 ? (
+                          gameModes.map((mode) => (
+                            <Badge key={mode} variant="outline">
+                              {mode}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            —
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {media.provider === 'spotify' ? null : media.type === 'game' ? (
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <Building2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                      <div className="flex-1">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Developers
+                        </div>
+                        <div className="mt-1 text-sm text-muted-foreground">
+                          {gameDevelopers.length > 0
+                            ? gameDevelopers.join(', ')
+                            : '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Building2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                      <div className="flex-1">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Publishers
+                        </div>
+                        <div className="mt-1 text-sm text-muted-foreground">
+                          {gamePublishers.length > 0
+                            ? gamePublishers.join(', ')
+                            : '—'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-3">
+                    <Building2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                    <div className="flex-1">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {media.type === 'tv' ? 'Networks' : 'Studios'}
+                      </div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        {(media.studios ?? []).length > 0
+                          ? (media.studios ?? []).join(', ')
+                          : '—'}
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>
             </Card>
-          ) : null}
 
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-semibold">Key Details</h2>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="flex items-start gap-3">
-                <Clock className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {media.type === 'tv'
-                      ? 'Episode length'
-                      : media.type === 'anime'
-                        ? 'Episodes'
-                        : 'Runtime'}
-                  </div>
-                  <div className="text-base font-medium">
-                    {media.type === 'anime'
-                      ? media.episodeCount
-                        ? `${media.episodeCount} episodes`
-                        : '—'
-                      : media.durationMinutes
-                        ? `${media.durationMinutes} minutes`
-                        : '—'}
-                  </div>
-                </div>
-              </div>
-
-              {media.type === 'album' ? (
-                <div className="flex items-start gap-3">
-                  <Music2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Tracks
-                    </div>
-                    <div className="text-base font-medium">
-                      {albumTracks.length > 0
-                        ? `${albumTracks.length} tracks`
-                        : 'ƒ?"'}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {media.type === 'tv' && media.episodeCount ? (
-                <div className="flex items-start gap-3">
-                  <Tv className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Episodes
-                    </div>
-                    <div className="text-base font-medium">
-                      {media.episodeCount} episodes
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {media.provider === 'spotify' ? null : (
-                <div className="flex items-start gap-3">
-                  <Tags className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                  <div className="flex-1">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Genres
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {(media.genres ?? []).length > 0 ? (
-                        (media.genres ?? []).map((g) => (
-                          <Badge key={g} variant="outline">
-                            {g}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-sm text-muted-foreground">-</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {media.provider === 'spotify' ? null : (
-                <div className="flex items-start gap-3">
-                  <Building2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                  <div className="flex-1">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {media.type === 'tv' ? 'Networks' : 'Studios'}
-                    </div>
-                    <div className="mt-1 text-sm text-muted-foreground">
-                      {(media.studios ?? []).length > 0
-                        ? (media.studios ?? []).join(', ')
-                        : '-'}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
-                <Users className="h-5 w-5 text-muted-foreground" />
-                {creditsTitle}
-              </h2>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {creators.length > 0 ||
-              writers.length > 0 ||
-              producers.length > 0 ? (
-                <div className="space-y-6">
-                  {creators.length > 0 ? (
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        {media.type === 'movie' ? 'Director' : 'Creator'}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-3">
-                        {creators.map((person) => (
-                          <div
-                            key={`${person.id ?? person.name}-${person.role ?? ''}`}
-                            className="flex items-center gap-3 rounded-full border bg-card/60 px-3 py-2"
-                          >
-                            <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-primary">
-                              {person.imageUrl ? (
-                                <Image
-                                  src={person.imageUrl}
-                                  alt={person.name}
-                                  fill
-                                  className="object-cover"
-                                  sizes="36px"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-primary-foreground">
-                                  <span className="text-sm font-semibold">
-                                    {person.name.slice(0, 1).toUpperCase()}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="max-w-[220px] truncate text-sm font-medium">
-                                {person.name}
-                              </div>
-                              <div className="max-w-[220px] truncate text-xs text-muted-foreground">
-                                {person.role ?? '\u00A0'}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {writers.length > 0 ? (
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        {media.type === 'anime'
-                          ? 'Writers / Original Author'
-                          : 'Writers'}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-3">
-                        {writers.map((person) => (
-                          <div
-                            key={`${person.id ?? person.name}-${person.role ?? ''}`}
-                            className="flex items-center gap-3 rounded-full border bg-card/60 px-3 py-2"
-                          >
-                            <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-primary">
-                              {person.imageUrl ? (
-                                <Image
-                                  src={person.imageUrl}
-                                  alt={person.name}
-                                  fill
-                                  className="object-cover"
-                                  sizes="36px"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-primary-foreground">
-                                  <span className="text-sm font-semibold">
-                                    {person.name.slice(0, 1).toUpperCase()}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="max-w-[220px] truncate text-sm font-medium">
-                                {person.name}
-                              </div>
-                              <div className="max-w-[220px] truncate text-xs text-muted-foreground">
-                                {person.role ?? 'Writer'}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {producers.length > 0 ? (
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Producers
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-3">
-                        {producers.map((person) => (
-                          <div
-                            key={`${person.id ?? person.name}-${person.role ?? ''}`}
-                            className="flex items-center gap-3 rounded-full border bg-card/60 px-3 py-2"
-                          >
-                            <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-primary">
-                              {person.imageUrl ? (
-                                <Image
-                                  src={person.imageUrl}
-                                  alt={person.name}
-                                  fill
-                                  className="object-cover"
-                                  sizes="36px"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-primary-foreground">
-                                  <span className="text-sm font-semibold">
-                                    {person.name.slice(0, 1).toUpperCase()}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="max-w-[220px] truncate text-sm font-medium">
-                                {person.name}
-                              </div>
-                              <div className="max-w-[220px] truncate text-xs text-muted-foreground">
-                                {person.role ?? '\u00A0'}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {cast.length > 0 ? (
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {castLabel}
-                  </div>
-                  <div className="mt-3 max-h-[560px] overflow-y-auto pr-1">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {cast.map((member) => (
-                        <div
-                          key={`${member.id ?? member.name}-${member.role ?? ''}`}
-                          className="flex items-start gap-3 rounded-2xl border bg-card/60 p-3"
+            {media.type === 'game' &&
+            (gameVideos.length > 0 ||
+              gameScreenshots.length > 0 ||
+              gameArtworks.length > 0) ? (
+              <Card>
+                <CardHeader>
+                  <h2 className="text-lg font-semibold">Media</h2>
+                </CardHeader>
+                <CardContent className="space-y-8 overflow-hidden">
+                  {gameVideos.length > 0 ? (
+                    <MediaCarousel
+                      title="Trailers & videos"
+                      items={gameVideos}
+                      renderItem={(video) => (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openExternalUrl(
+                              `https://www.youtube.com/watch?v=${video.videoId}`,
+                            )
+                          }
+                          className="group text-left"
                         >
-                          <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-primary">
-                            {member.imageUrl ? (
-                              <Image
-                                src={member.imageUrl}
-                                alt={member.name}
-                                fill
-                                className="object-cover"
-                                sizes="40px"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-primary-foreground">
-                                <span className="text-sm font-semibold">
-                                  {member.name.slice(0, 1).toUpperCase()}
-                                </span>
+                          <div className="relative aspect-video overflow-hidden rounded-2xl border bg-muted">
+                            <img
+                              src={`https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`}
+                              alt={video.name ?? `${media.title} trailer`}
+                              className="h-full w-full object-cover transition group-hover:scale-[1.02]"
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow">
+                                <Play className="h-5 w-5" />
                               </div>
-                            )}
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">
-                              {member.name}
-                            </div>
-                            <div className="truncate text-xs text-muted-foreground">
-                              {member.role || '\u00A0'}
-                            </div>
+                          <div className="mt-2 line-clamp-2 text-sm font-medium">
+                            {video.name ?? 'Watch video'}
+                          </div>
+                        </button>
+                      )}
+                    />
+                  ) : null}
+
+                  {gameScreenshots.length > 0 ? (
+                    <MediaCarousel
+                      title="Screenshots"
+                      items={gameScreenshots}
+                      renderItem={(imageUrl, index) => (
+                        <div className="relative aspect-video overflow-hidden rounded-2xl border bg-muted">
+                          <Image
+                            src={imageUrl}
+                            alt={`${media.title} screenshot ${index + 1}`}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 90vw, 420px"
+                          />
+                        </div>
+                      )}
+                    />
+                  ) : null}
+
+                  {gameArtworks.length > 0 ? (
+                    <MediaCarousel
+                      title="Artworks"
+                      items={gameArtworks}
+                      renderItem={(imageUrl, index) => (
+                        <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border bg-muted">
+                          <Image
+                            src={imageUrl}
+                            alt={`${media.title} artwork ${index + 1}`}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 90vw, 420px"
+                          />
+                        </div>
+                      )}
+                    />
+                  ) : null}
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {media.type === 'game' &&
+            (dlcs.length > 0 ||
+              expansions.length > 0 ||
+              similarGames.length > 0) ? (
+              <Card>
+                <CardHeader>
+                  <h2 className="text-lg font-semibold">Related Games</h2>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {dlcs.length > 0 ? (
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        DLC
+                      </div>
+                      <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {dlcs.map((item) => (
+                          <MediaCard key={item.id} media={item} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {expansions.length > 0 ? (
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Expansions
+                      </div>
+                      <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {expansions.map((item) => (
+                          <MediaCard key={item.id} media={item} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {similarGames.length > 0 ? (
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Similar games
+                      </div>
+                      <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {similarGames.map((item) => (
+                          <MediaCard key={item.id} media={item} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {media.type !== 'game' || hasCredits ? (
+              <Card>
+                <CardHeader>
+                  <h2 className="flex items-center gap-2 text-lg font-semibold">
+                    <Users className="h-5 w-5 text-muted-foreground" />
+                    {creditsTitle}
+                  </h2>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {creators.length > 0 ||
+                  writers.length > 0 ||
+                  composers.length > 0 ||
+                  artDirectors.length > 0 ||
+                  producers.length > 0 ? (
+                    <div className="space-y-6">
+                      {creators.length > 0 ? (
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            {media.type === 'movie' || media.type === 'game'
+                              ? 'Director'
+                              : 'Creator'}
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-3">
+                            {creators.map((person) => (
+                              <div
+                                key={`${person.id ?? person.name}-${person.role ?? ''}`}
+                                className="flex items-center gap-3 rounded-full border bg-card/60 px-3 py-2"
+                              >
+                                <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-primary">
+                                  {person.imageUrl ? (
+                                    <Image
+                                      src={person.imageUrl}
+                                      alt={person.name}
+                                      fill
+                                      className="object-cover"
+                                      sizes="36px"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-primary-foreground">
+                                      <span className="text-sm font-semibold">
+                                        {person.name.slice(0, 1).toUpperCase()}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="max-w-[220px] truncate text-sm font-medium">
+                                    {person.name}
+                                  </div>
+                                  <div className="max-w-[220px] truncate text-xs text-muted-foreground">
+                                    {person.role ?? '\u00A0'}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      ))}
+                      ) : null}
+
+                      {writers.length > 0 ? (
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            {media.type === 'anime'
+                              ? 'Writers / Original Author'
+                              : 'Writers'}
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-3">
+                            {writers.map((person) => (
+                              <div
+                                key={`${person.id ?? person.name}-${person.role ?? ''}`}
+                                className="flex items-center gap-3 rounded-full border bg-card/60 px-3 py-2"
+                              >
+                                <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-primary">
+                                  {person.imageUrl ? (
+                                    <Image
+                                      src={person.imageUrl}
+                                      alt={person.name}
+                                      fill
+                                      className="object-cover"
+                                      sizes="36px"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-primary-foreground">
+                                      <span className="text-sm font-semibold">
+                                        {person.name.slice(0, 1).toUpperCase()}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="max-w-[220px] truncate text-sm font-medium">
+                                    {person.name}
+                                  </div>
+                                  <div className="max-w-[220px] truncate text-xs text-muted-foreground">
+                                    {person.role ?? 'Writer'}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {composers.length > 0 ? (
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Composers
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-3">
+                            {composers.map((person) => (
+                              <div
+                                key={`${person.id ?? person.name}-${person.role ?? ''}`}
+                                className="flex items-center gap-3 rounded-full border bg-card/60 px-3 py-2"
+                              >
+                                <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-primary">
+                                  {person.imageUrl ? (
+                                    <Image
+                                      src={person.imageUrl}
+                                      alt={person.name}
+                                      fill
+                                      className="object-cover"
+                                      sizes="36px"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-primary-foreground">
+                                      <span className="text-sm font-semibold">
+                                        {person.name.slice(0, 1).toUpperCase()}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="max-w-[220px] truncate text-sm font-medium">
+                                    {person.name}
+                                  </div>
+                                  <div className="max-w-[220px] truncate text-xs text-muted-foreground">
+                                    {person.role ?? 'Composer'}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {artDirectors.length > 0 ? (
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Art Directors
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-3">
+                            {artDirectors.map((person) => (
+                              <div
+                                key={`${person.id ?? person.name}-${person.role ?? ''}`}
+                                className="flex items-center gap-3 rounded-full border bg-card/60 px-3 py-2"
+                              >
+                                <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-primary">
+                                  {person.imageUrl ? (
+                                    <Image
+                                      src={person.imageUrl}
+                                      alt={person.name}
+                                      fill
+                                      className="object-cover"
+                                      sizes="36px"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-primary-foreground">
+                                      <span className="text-sm font-semibold">
+                                        {person.name.slice(0, 1).toUpperCase()}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="max-w-[220px] truncate text-sm font-medium">
+                                    {person.name}
+                                  </div>
+                                  <div className="max-w-[220px] truncate text-xs text-muted-foreground">
+                                    {person.role ?? 'Art Director'}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {producers.length > 0 ? (
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Producers
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-3">
+                            {producers.map((person) => (
+                              <div
+                                key={`${person.id ?? person.name}-${person.role ?? ''}`}
+                                className="flex items-center gap-3 rounded-full border bg-card/60 px-3 py-2"
+                              >
+                                <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-primary">
+                                  {person.imageUrl ? (
+                                    <Image
+                                      src={person.imageUrl}
+                                      alt={person.name}
+                                      fill
+                                      className="object-cover"
+                                      sizes="36px"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-primary-foreground">
+                                      <span className="text-sm font-semibold">
+                                        {person.name.slice(0, 1).toUpperCase()}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="max-w-[220px] truncate text-sm font-medium">
+                                    {person.name}
+                                  </div>
+                                  <div className="max-w-[220px] truncate text-xs text-muted-foreground">
+                                    {person.role ?? '\u00A0'}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
+                  ) : null}
+
+                  {cast.length > 0 ? (
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {castLabel}
+                      </div>
+                      <div className="mt-3 max-h-[560px] overflow-y-auto pr-1">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {cast.map((member) => (
+                            <div
+                              key={`${member.id ?? member.name}-${member.role ?? ''}`}
+                              className="flex items-start gap-3 rounded-2xl border bg-card/60 p-3"
+                            >
+                              <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-primary">
+                                {member.imageUrl ? (
+                                  <Image
+                                    src={member.imageUrl}
+                                    alt={member.name}
+                                    fill
+                                    className="object-cover"
+                                    sizes="40px"
+                                  />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-primary-foreground">
+                                    <span className="text-sm font-semibold">
+                                      {member.name.slice(0, 1).toUpperCase()}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-medium">
+                                  {member.name}
+                                </div>
+                                <div className="truncate text-xs text-muted-foreground">
+                                  {member.role || '\u00A0'}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+
+          {/* Right column */}
+          <div className="space-y-8">
+            <div className="sticky top-24 space-y-8">
+              <Card>
+                <CardHeader>
+                  <h2 className="text-lg font-semibold">Your Entry</h2>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium">
+                      Status
+                    </label>
+                    <StatusSelect
+                      value={status}
+                      onChange={setStatus}
+                      mediaType={statusMediaType}
+                    />
                   </div>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* Right column */}
-        <div className="space-y-8">
-          <div className="sticky top-24 space-y-8">
-            <Card>
-              <CardHeader>
-                <h2 className="text-lg font-semibold">Your Entry</h2>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="mb-2 block text-sm font-medium">
-                    Status
-                  </label>
-                  <StatusSelect
-                    value={status}
-                    onChange={setStatus}
-                    mediaType={statusMediaType}
-                  />
-                </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium">
+                      Rating
+                    </label>
+                    <RatingStars
+                      rating={rating}
+                      interactive
+                      onRatingChange={setRating}
+                      maxRating={10}
+                      size="lg"
+                    />
+                  </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-medium">
-                    Rating
-                  </label>
-                  <RatingStars
-                    rating={rating}
-                    interactive
-                    onRatingChange={setRating}
-                    maxRating={10}
-                    size="lg"
-                  />
-                </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium">
+                      Notes
+                    </label>
+                    <Textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Add your thoughts..."
+                      rows={4}
+                    />
+                  </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-medium">
-                    Notes
-                  </label>
-                  <Textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add your thoughts..."
-                    rows={4}
-                  />
-                </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => void openAddToList()}
+                    disabled={!user || isSaving}
+                  >
+                    Add to list
+                  </Button>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => void openAddToList()}
-                  disabled={!user || isSaving}
-                >
-                  Add to list
-                </Button>
-
-                <Button
-                  className="w-full"
-                  onClick={handleSaveEntry}
-                  disabled={isSaving}
-                >
-                  {isSaving
-                    ? 'Saving…'
-                    : user
-                      ? 'Save Changes'
-                      : 'Log in to save'}
-                </Button>
-                {!user ? (
-                  <p className="text-xs text-muted-foreground">
-                    Sign in to keep track of your progress.
-                  </p>
-                ) : null}
-              </CardContent>
-            </Card>
+                  <Button
+                    className="w-full"
+                    onClick={handleSaveEntry}
+                    disabled={isSaving}
+                  >
+                    {isSaving
+                      ? 'Saving…'
+                      : user
+                        ? 'Save Changes'
+                        : 'Log in to save'}
+                  </Button>
+                  {!user ? (
+                    <p className="text-xs text-muted-foreground">
+                      Sign in to keep track of your progress.
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
@@ -1490,6 +1853,134 @@ function AlbumTrackCard({
         </div>
       </div>
     </article>
+  )
+}
+
+function MediaCarousel<T>({
+  title,
+  items,
+  renderItem,
+}: {
+  title: string
+  items: T[]
+  renderItem: (item: T, index: number) => ReactNode
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [pageCount, setPageCount] = useState(1)
+  const [pageIndex, setPageIndex] = useState(0)
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const updatePagination = () => {
+      const pages = Math.max(
+        1,
+        Math.ceil(container.scrollWidth / container.clientWidth),
+      )
+      setPageCount(pages)
+      setPageIndex(
+        Math.min(
+          pages - 1,
+          Math.round(container.scrollLeft / container.clientWidth),
+        ),
+      )
+    }
+
+    const handleScroll = () => updatePagination()
+
+    updatePagination()
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('resize', updatePagination)
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', updatePagination)
+    }
+  }, [items.length])
+
+  const scrollByPage = (direction: 'prev' | 'next') => {
+    const container = containerRef.current
+    if (!container) return
+    const delta =
+      direction === 'next' ? container.clientWidth : -container.clientWidth
+    container.scrollBy({ left: delta, behavior: 'smooth' })
+  }
+
+  const scrollToPage = (index: number) => {
+    const container = containerRef.current
+    if (!container) return
+    container.scrollTo({
+      left: index * container.clientWidth,
+      behavior: 'smooth',
+    })
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </div>
+      </div>
+
+      <div className="relative w-full max-w-full overflow-hidden min-w-0">
+        <div
+          ref={containerRef}
+          className="flex w-full max-w-full min-w-0 snap-x snap-mandatory gap-4 overflow-x-auto pb-2"
+        >
+          {items.map((item, index) => (
+            <div
+              key={index}
+              className="min-w-[240px] snap-start sm:min-w-[320px]"
+            >
+              {renderItem(item, index)}
+            </div>
+          ))}
+        </div>
+        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2">
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="pointer-events-auto h-9 w-9 rounded-full bg-white/90 shadow"
+            onClick={() => scrollByPage('prev')}
+            aria-label={`Scroll ${title} left`}
+          >
+            {'<'}
+          </Button>
+        </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="pointer-events-auto h-9 w-9 rounded-full bg-white/90 shadow"
+            onClick={() => scrollByPage('next')}
+            aria-label={`Scroll ${title} right`}
+          >
+            {'>'}
+          </Button>
+        </div>
+      </div>
+
+      {pageCount > 1 ? (
+        <div className="flex items-center justify-center gap-2">
+          {Array.from({ length: pageCount }).map((_, index) => (
+            <button
+              key={`${title}-${index}`}
+              type="button"
+              className={`h-2 w-2 rounded-full ${
+                index === pageIndex ? 'bg-slate-900' : 'bg-slate-300'
+              }`}
+              aria-label={`Go to ${title} page ${index + 1}`}
+              aria-current={index === pageIndex}
+              onClick={() => scrollToPage(index)}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
   )
 }
 

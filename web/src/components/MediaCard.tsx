@@ -2,11 +2,11 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Card, CardFooter, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import type { Media } from '@/types'
+import type { MediaPreview } from '@/types'
 
 interface MediaCardProps {
-  media: Media
-  onAdd?: (media: Media) => void
+  media: MediaPreview
+  onAdd?: (media: MediaPreview) => void
 }
 
 export function MediaCard({ media, onAdd }: MediaCardProps) {
