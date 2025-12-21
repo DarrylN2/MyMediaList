@@ -63,6 +63,7 @@ type ListItem = {
     status: import('@/types').EntryStatus
     rating: number | null
     note: string | null
+    episodeProgress?: number | null
     updatedAt: string
     firstRatedAt?: string | null
   } | null
@@ -247,6 +248,104 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
     )
   }
 
+  const handleEpisodeProgressUpdate = async (
+    entry: (typeof processedItems)[number],
+    next: number | null,
+  ) => {
+    if (!user?.email) return
+
+    const currentStatus =
+      (entry.entry?.status as import('@/types').EntryStatus) ?? 'Planning'
+    const episodeCount = getEpisodeCount(entry.media.metadata)
+    const clamp = (value: number) => {
+      const rounded = Math.max(0, Math.round(value))
+      return episodeCount != null ? Math.min(episodeCount, rounded) : rounded
+    }
+
+    let nextStatus = currentStatus
+    let nextProgress = entry.entry?.episodeProgress ?? null
+    let updateProgress = false
+
+    if (currentStatus === 'Dropped') {
+      if (next != null && next > 0) {
+        nextProgress = clamp(next)
+        updateProgress = true
+      }
+    } else if (next == null || next <= 0) {
+      nextStatus = 'Planning'
+    } else {
+      const clamped = clamp(next)
+      nextProgress = clamped
+      updateProgress = true
+      if (episodeCount != null && clamped >= episodeCount) {
+        nextStatus = 'Completed'
+      } else {
+        nextStatus = 'Watching'
+      }
+    }
+
+    const shouldPersist = updateProgress || nextStatus !== currentStatus
+    if (!shouldPersist) return
+
+    setItems((prev) =>
+      prev.map((row) => {
+        const media = Array.isArray(row.media_items)
+          ? row.media_items[0]
+          : row.media_items
+        if (!media) return row
+        if (media.id !== entry.media.id) return row
+        return {
+          ...row,
+          entry: {
+            status: nextStatus,
+            rating: row.entry?.rating ?? null,
+            note: row.entry?.note ?? null,
+            episodeProgress: row.entry?.episodeProgress ?? null,
+            episodeProgress: updateProgress
+              ? (nextProgress ?? null)
+              : (row.entry?.episodeProgress ?? null),
+            updatedAt: row.entry?.updatedAt ?? new Date().toISOString(),
+            firstRatedAt: row.entry?.firstRatedAt ?? null,
+          },
+        }
+      }),
+    )
+
+    const res = await fetch('/api/list', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user.email,
+        media: {
+          provider: entry.media.source,
+          providerId: entry.media.source_id,
+          type: entry.media.type,
+          title: entry.media.title,
+          posterUrl: entry.media.poster_url ?? undefined,
+          description: entry.media.description ?? undefined,
+          episodeCount: getEpisodeCount(entry.media.metadata) ?? undefined,
+        },
+        entry: {
+          status: nextStatus,
+          ...(updateProgress ? { episodeProgress: nextProgress ?? null } : {}),
+        },
+      }),
+    })
+
+    if (res.ok) {
+      const payload = (await res.json().catch(() => null)) as {
+        mediaMeta?: { episodeCount?: unknown } | null
+      } | null
+      const resolvedCount =
+        typeof payload?.mediaMeta?.episodeCount === 'number'
+          ? payload.mediaMeta.episodeCount
+          : null
+      if (resolvedCount != null) {
+        mergeEpisodeCountForMedia(entry.media.id, resolvedCount)
+      }
+    }
+  }
+
   const renderView = () => {
     if (processedItems.length === 0) {
       return (
@@ -259,13 +358,14 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
     if (viewMode === 'compact') {
       return (
         <div className="overflow-x-auto rounded-2xl border bg-white/95 shadow-sm">
-          <div className="min-w-[1280px] divide-y divide-slate-200 p-2">
-            <div className="grid grid-cols-[96px_260px_1fr_80px_100px_120px_160px_120px] items-start gap-3 px-2 pb-3 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="min-w-[1360px] divide-y divide-slate-200 p-2">
+            <div className="grid grid-cols-[96px_260px_1fr_80px_100px_140px_120px_160px_120px] items-start gap-3 px-2 pb-3 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
               <span />
               <span>Title</span>
               <span>Synopsis</span>
               <span>Year</span>
               <span>Runtime</span>
+              <span>Episode</span>
               <span>Status</span>
               <span>Rating</span>
               <span>Date</span>
@@ -282,6 +382,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                 year={entry.media.year ?? undefined}
                 runtimeMinutes={entry.media.duration_minutes ?? undefined}
                 episodeCount={getEpisodeCount(entry.media.metadata)}
+                episodeProgress={entry.entry?.episodeProgress ?? null}
                 genres={entry.media.genres ?? undefined}
                 directors={entry.media.directors ?? undefined}
                 writers={entry.media.writers ?? undefined}
@@ -309,6 +410,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                           status: next,
                           rating: row.entry?.rating ?? null,
                           note: row.entry?.note ?? null,
+                          episodeProgress: row.entry?.episodeProgress ?? null,
                           updatedAt:
                             row.entry?.updatedAt ?? new Date().toISOString(),
                           firstRatedAt: row.entry?.firstRatedAt ?? null,
@@ -347,6 +449,9 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                     }
                   }
                 }}
+                onChangeEpisodeProgress={(next) =>
+                  handleEpisodeProgressUpdate(entry, next)
+                }
                 onChangeRating={async (next) => {
                   if (!user?.email) return
                   setItems((prev) =>
@@ -365,6 +470,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                           status: row.entry?.status ?? 'Planning',
                           rating: next,
                           note: row.entry?.note ?? null,
+                          episodeProgress: row.entry?.episodeProgress ?? null,
                           updatedAt:
                             row.entry?.updatedAt ?? new Date().toISOString(),
                           firstRatedAt: nextFirstRatedAt,
@@ -478,6 +584,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
               year={entry.media.year ?? undefined}
               runtimeMinutes={entry.media.duration_minutes ?? undefined}
               episodeCount={getEpisodeCount(entry.media.metadata)}
+              episodeProgress={entry.entry?.episodeProgress ?? null}
               genres={entry.media.genres ?? undefined}
               directors={entry.media.directors ?? undefined}
               writers={entry.media.writers ?? undefined}
@@ -505,6 +612,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                         status: next,
                         rating: row.entry?.rating ?? null,
                         note: row.entry?.note ?? null,
+                        episodeProgress: row.entry?.episodeProgress ?? null,
                         updatedAt:
                           row.entry?.updatedAt ?? new Date().toISOString(),
                         firstRatedAt: row.entry?.firstRatedAt ?? null,
@@ -543,6 +651,9 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                   }
                 }
               }}
+              onChangeEpisodeProgress={(next) =>
+                handleEpisodeProgressUpdate(entry, next)
+              }
               onChangeRating={async (next) => {
                 if (!user?.email) return
                 setItems((prev) =>
@@ -561,6 +672,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                         status: row.entry?.status ?? 'Planning',
                         rating: next,
                         note: row.entry?.note ?? null,
+                        episodeProgress: row.entry?.episodeProgress ?? null,
                         updatedAt:
                           row.entry?.updatedAt ?? new Date().toISOString(),
                         firstRatedAt: nextFirstRatedAt,
@@ -673,6 +785,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
             year={entry.media.year ?? undefined}
             runtimeMinutes={entry.media.duration_minutes ?? undefined}
             episodeCount={getEpisodeCount(entry.media.metadata)}
+            episodeProgress={entry.entry?.episodeProgress ?? null}
             genres={entry.media.genres ?? undefined}
             directors={entry.media.directors ?? undefined}
             writers={entry.media.writers ?? undefined}
@@ -700,6 +813,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       status: next,
                       rating: row.entry?.rating ?? null,
                       note: row.entry?.note ?? null,
+                      episodeProgress: row.entry?.episodeProgress ?? null,
                       updatedAt:
                         row.entry?.updatedAt ?? new Date().toISOString(),
                       firstRatedAt: row.entry?.firstRatedAt ?? null,
@@ -738,6 +852,9 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                 }
               }
             }}
+            onChangeEpisodeProgress={(next) =>
+              handleEpisodeProgressUpdate(entry, next)
+            }
             onChangeRating={async (next) => {
               if (!user?.email) return
               setItems((prev) =>
@@ -756,6 +873,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       status: row.entry?.status ?? 'Planning',
                       rating: next,
                       note: row.entry?.note ?? null,
+                      episodeProgress: row.entry?.episodeProgress ?? null,
                       updatedAt:
                         row.entry?.updatedAt ?? new Date().toISOString(),
                       firstRatedAt: nextFirstRatedAt,

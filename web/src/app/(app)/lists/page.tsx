@@ -59,6 +59,7 @@ type RatedItem = {
   updatedAt: string
   firstRatedAt: string | null
   note: string | null
+  episodeProgress: number | null
   coverUrl: string | null
   description: string | null
   year: number | null
@@ -326,6 +327,7 @@ export default function ListsPage() {
             status: EntryStatus
             rating: number
             note: string | null
+            episodeProgress: number | null
             updatedAt: string
             firstRatedAt: string | null
             media: {
@@ -356,6 +358,7 @@ export default function ListsPage() {
               updatedAt: item.updatedAt,
               firstRatedAt: item.firstRatedAt ?? null,
               note: item.note,
+              episodeProgress: item.episodeProgress ?? null,
               coverUrl: item.media.posterUrl,
               description: item.media.description ?? null,
               year: item.media.year ?? null,
@@ -444,6 +447,7 @@ export default function ListsPage() {
       status: EntryStatus
       rating: number | null
       note: string
+      episodeProgress: number | null
     }>,
   ) => {
     if (!user?.email) return
@@ -467,6 +471,69 @@ export default function ListsPage() {
     if (!res.ok) {
       const payload = await res.json().catch(() => null)
       throw new Error(payload?.error ?? 'Unable to save changes.')
+    }
+  }
+
+  const handleEpisodeProgressUpdate = async (
+    item: RatedItem,
+    next: number | null,
+  ) => {
+    const episodeCount =
+      typeof item.episodeCount === 'number' && item.episodeCount > 0
+        ? Math.round(item.episodeCount)
+        : null
+    const clamp = (value: number) => {
+      const rounded = Math.max(0, Math.round(value))
+      return episodeCount != null ? Math.min(episodeCount, rounded) : rounded
+    }
+
+    let nextStatus = item.status
+    let nextProgress = item.episodeProgress
+    let updateProgress = false
+
+    if (item.status === 'Dropped') {
+      if (next != null && next > 0) {
+        nextProgress = clamp(next)
+        updateProgress = true
+      }
+    } else if (next == null || next <= 0) {
+      nextStatus = 'Planning'
+    } else {
+      const clamped = clamp(next)
+      nextProgress = clamped
+      updateProgress = true
+      if (episodeCount != null && clamped >= episodeCount) {
+        nextStatus = 'Completed'
+      } else {
+        nextStatus = 'Watching'
+      }
+    }
+
+    const shouldPersist = updateProgress || nextStatus !== item.status
+    if (!shouldPersist) return
+
+    const prev = ratedItems
+    setRatedItems((items) =>
+      items.map((x) =>
+        x.providerId === item.providerId && x.type === item.type
+          ? {
+              ...x,
+              status: nextStatus,
+              episodeProgress: updateProgress
+                ? (nextProgress ?? null)
+                : x.episodeProgress,
+            }
+          : x,
+      ),
+    )
+
+    try {
+      await persistRatedPatch(item, {
+        status: nextStatus,
+        ...(updateProgress ? { episodeProgress: nextProgress ?? null } : {}),
+      })
+    } catch {
+      setRatedItems(prev)
     }
   }
 
@@ -958,13 +1025,14 @@ export default function ListsPage() {
             </div>
           ) : ratedViewMode === 'compact' ? (
             <div className="overflow-x-auto rounded-2xl border bg-white/95 shadow-sm">
-              <div className="min-w-[1280px] divide-y divide-slate-200 p-2">
-                <div className="grid grid-cols-[96px_260px_1fr_80px_100px_120px_160px_120px] items-start gap-3 px-2 pb-3 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="min-w-[1360px] divide-y divide-slate-200 p-2">
+                <div className="grid grid-cols-[96px_260px_1fr_80px_100px_140px_120px_160px_120px] items-start gap-3 px-2 pb-3 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   <span />
                   <span>Title</span>
                   <span>Synopsis</span>
                   <span>Year</span>
                   <span>Runtime</span>
+                  <span>Episode</span>
                   <span>Status</span>
                   <span>Rating</span>
                   <span>Date</span>
@@ -988,6 +1056,7 @@ export default function ListsPage() {
                       year={item.year ?? undefined}
                       runtimeMinutes={item.durationMinutes ?? undefined}
                       episodeCount={item.episodeCount ?? null}
+                      episodeProgress={item.episodeProgress ?? null}
                       genres={item.genres ?? undefined}
                       directors={item.directors ?? undefined}
                       writers={item.writers ?? undefined}
@@ -1013,6 +1082,9 @@ export default function ListsPage() {
                           setRatedItems(prev)
                         }
                       }}
+                      onChangeEpisodeProgress={(next) =>
+                        handleEpisodeProgressUpdate(item, next)
+                      }
                       onChangeRating={async (next) => {
                         const prev = ratedItems
                         setRatedItems((items) =>
@@ -1071,6 +1143,7 @@ export default function ListsPage() {
                     year={item.year ?? undefined}
                     runtimeMinutes={item.durationMinutes ?? undefined}
                     episodeCount={item.episodeCount ?? null}
+                    episodeProgress={item.episodeProgress ?? null}
                     genres={item.genres ?? undefined}
                     directors={item.directors ?? undefined}
                     writers={item.writers ?? undefined}
@@ -1096,6 +1169,9 @@ export default function ListsPage() {
                         setRatedItems(prev)
                       }
                     }}
+                    onChangeEpisodeProgress={(next) =>
+                      handleEpisodeProgressUpdate(item, next)
+                    }
                     onChangeRating={async (next) => {
                       const prev = ratedItems
                       setRatedItems((items) =>
@@ -1153,6 +1229,7 @@ export default function ListsPage() {
                     year={item.year ?? undefined}
                     runtimeMinutes={item.durationMinutes ?? undefined}
                     episodeCount={item.episodeCount ?? null}
+                    episodeProgress={item.episodeProgress ?? null}
                     genres={item.genres ?? undefined}
                     directors={item.directors ?? undefined}
                     writers={item.writers ?? undefined}
@@ -1178,6 +1255,9 @@ export default function ListsPage() {
                         setRatedItems(prev)
                       }
                     }}
+                    onChangeEpisodeProgress={(next) =>
+                      handleEpisodeProgressUpdate(item, next)
+                    }
                     onChangeRating={async (next) => {
                       const prev = ratedItems
                       setRatedItems((items) =>

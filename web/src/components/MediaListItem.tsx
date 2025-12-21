@@ -8,6 +8,7 @@ import { Calendar, MessageSquareText, Pencil, Star } from 'lucide-react'
 import type { EntryStatus, MediaType } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -46,6 +47,7 @@ export interface MediaListItemProps {
   year?: number
   runtimeMinutes?: number
   episodeCount?: number | null
+  episodeProgress?: number | null
   genres?: string[] | null
   directors?: string[] | null
   writers?: string[] | null
@@ -60,6 +62,7 @@ export interface MediaListItemProps {
   onChangeStatus?: (next: EntryStatus) => Promise<void> | void
   onChangeRating?: (next: number) => Promise<void> | void
   onSaveNote?: (next: string) => Promise<void> | void
+  onChangeEpisodeProgress?: (next: number | null) => Promise<void> | void
 
   busy?: boolean
 }
@@ -104,6 +107,7 @@ export function MediaListItem({
   year,
   runtimeMinutes,
   episodeCount,
+  episodeProgress,
   genres,
   directors,
   writers,
@@ -116,6 +120,7 @@ export function MediaListItem({
   onChangeStatus,
   onChangeRating,
   onSaveNote,
+  onChangeEpisodeProgress,
   busy = false,
 }: MediaListItemProps) {
   const [editingStatus, setEditingStatus] = useState(false)
@@ -184,6 +189,40 @@ export function MediaListItem({
         {status}
       </Badge>
     ) : null
+
+  const isEpisodeTrackable =
+    (type === 'tv' || type === 'anime') &&
+    (status === 'Watching' || status === 'Dropped')
+  const episodeCountValue =
+    typeof episodeCount === 'number' && Number.isFinite(episodeCount)
+      ? Math.max(0, Math.round(episodeCount))
+      : null
+  const episodeProgressValue =
+    typeof episodeProgress === 'number' && Number.isFinite(episodeProgress)
+      ? Math.max(0, Math.round(episodeProgress))
+      : null
+  const showEpisodeProgress =
+    isEpisodeTrackable &&
+    (onChangeEpisodeProgress || episodeProgressValue != null)
+
+  const handleEpisodeProgressInput = (raw: string) => {
+    if (!onChangeEpisodeProgress) return
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      onChangeEpisodeProgress(null)
+      return
+    }
+    const next = Number(trimmed)
+    if (!Number.isFinite(next)) return
+    onChangeEpisodeProgress(next)
+  }
+
+  const handleEpisodeProgressSlider = (raw: string) => {
+    if (!onChangeEpisodeProgress) return
+    const next = Number(raw)
+    if (!Number.isFinite(next)) return
+    onChangeEpisodeProgress(next)
+  }
 
   const noteButton =
     onSaveNote || note ? (
@@ -336,7 +375,7 @@ export function MediaListItem({
       rating != null && rating > 0 ? String(rating) : String(0)
 
     return (
-      <div className="grid grid-cols-[96px_260px_1fr_80px_100px_120px_160px_120px] items-start gap-3 px-2 py-3">
+      <div className="grid grid-cols-[96px_260px_1fr_80px_100px_140px_120px_160px_120px] items-start gap-3 px-2 py-3">
         <div className="flex flex-col items-start">
           <Link
             href={href}
@@ -406,6 +445,36 @@ export function MediaListItem({
             : runtimeMinutes != null
               ? formatDuration(runtimeMinutes)
               : '—'}
+        </div>
+
+        <div className="flex justify-center">
+          {showEpisodeProgress ? (
+            onChangeEpisodeProgress ? (
+              <Input
+                type="number"
+                min={0}
+                max={episodeCountValue ?? undefined}
+                value={
+                  episodeProgressValue != null
+                    ? String(episodeProgressValue)
+                    : ''
+                }
+                onChange={(event) =>
+                  handleEpisodeProgressInput(event.target.value)
+                }
+                className="h-8 w-20 text-center"
+                disabled={busy}
+                aria-label="Episode progress"
+              />
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                {episodeProgressValue ?? '-'}
+                {episodeCountValue != null ? `/${episodeCountValue}` : ''}
+              </span>
+            )
+          ) : (
+            <span className="text-sm text-muted-foreground">-</span>
+          )}
         </div>
 
         <div className="flex justify-center">{statusNode}</div>
@@ -530,6 +599,48 @@ export function MediaListItem({
           ) : (
             <RatingStars rating={rating ?? 0} size="sm" />
           )}
+
+          {showEpisodeProgress ? (
+            <div className="space-y-2">
+              {episodeCountValue != null ? (
+                <input
+                  type="range"
+                  min={0}
+                  max={episodeCountValue}
+                  value={episodeProgressValue ?? 0}
+                  onChange={(event) =>
+                    handleEpisodeProgressSlider(event.target.value)
+                  }
+                  className="w-full"
+                  aria-label="Episode progress slider"
+                  disabled={busy}
+                />
+              ) : null}
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  max={episodeCountValue ?? undefined}
+                  value={
+                    episodeProgressValue != null
+                      ? String(episodeProgressValue)
+                      : ''
+                  }
+                  onChange={(event) =>
+                    handleEpisodeProgressInput(event.target.value)
+                  }
+                  className="h-8 w-20"
+                  disabled={busy}
+                  aria-label="Episode progress"
+                />
+                <span className="text-xs text-muted-foreground">
+                  {episodeCountValue != null
+                    ? `/ ${episodeCountValue}`
+                    : 'episodes'}
+                </span>
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex items-center justify-between gap-2">
             <div>{statusNode}</div>
@@ -683,6 +794,53 @@ export function MediaListItem({
             <Star className="h-6 w-6 text-amber-700" />
           </div>
         </section>
+
+        {showEpisodeProgress ? (
+          <section className="rounded-2xl border border-slate-100 bg-white/70 p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Episode progress
+            </div>
+            <div className="mt-2 space-y-2">
+              {episodeCountValue != null ? (
+                <input
+                  type="range"
+                  min={0}
+                  max={episodeCountValue}
+                  value={episodeProgressValue ?? 0}
+                  onChange={(event) =>
+                    handleEpisodeProgressSlider(event.target.value)
+                  }
+                  className="w-full"
+                  aria-label="Episode progress slider"
+                  disabled={busy}
+                />
+              ) : null}
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  max={episodeCountValue ?? undefined}
+                  value={
+                    episodeProgressValue != null
+                      ? String(episodeProgressValue)
+                      : ''
+                  }
+                  onChange={(event) =>
+                    handleEpisodeProgressInput(event.target.value)
+                  }
+                  className="h-9 w-24"
+                  disabled={busy}
+                  aria-label="Episode progress"
+                />
+                <span className="text-xs text-muted-foreground">
+                  {episodeCountValue != null
+                    ? `/ ${episodeCountValue}`
+                    : 'episodes'}
+                </span>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <div className="mt-auto flex items-center justify-end gap-2 text-xs">
           {statusNode ? (

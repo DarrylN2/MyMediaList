@@ -28,6 +28,7 @@ interface PersistMediaPayload {
     status?: EntryStatus
     rating?: number | null
     note?: string
+    episodeProgress?: number | null
   }
 }
 
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
 
     const { data: entry, error } = await supabase
       .from('user_media')
-      .select('status, user_rating, note')
+      .select('status, user_rating, note, episode_progress')
       .eq('user_identifier', userId)
       .eq('media_id', mediaRow.id)
       .maybeSingle()
@@ -82,6 +83,11 @@ export async function GET(request: NextRequest) {
             status: entry.status as EntryStatus,
             rating: entry.user_rating,
             note: entry.note,
+            episodeProgress:
+              typeof entry.episode_progress === 'number' &&
+              Number.isFinite(entry.episode_progress)
+                ? entry.episode_progress
+                : null,
           }
         : null,
     })
@@ -149,19 +155,30 @@ async function upsertMediaEntry(payload: PersistMediaPayload) {
 
   const mediaRow = await ensureMediaRow(supabase, payload.media)
 
+  const episodeProgress =
+    typeof payload.entry?.episodeProgress === 'number' &&
+    Number.isFinite(payload.entry.episodeProgress)
+      ? Math.max(0, Math.round(payload.entry.episodeProgress))
+      : payload.entry?.episodeProgress === null
+        ? null
+        : undefined
+
+  const entryUpdate: Record<string, unknown> = {
+    user_identifier: payload.userId,
+    media_id: mediaRow.id,
+    status: payload.entry?.status ?? 'Planning',
+    user_rating: payload.entry?.rating ?? null,
+    note: payload.entry?.note ?? null,
+  }
+
+  if (episodeProgress !== undefined) {
+    entryUpdate.episode_progress = episodeProgress
+  }
+
   const { data: entry, error } = await supabase
     .from('user_media')
-    .upsert(
-      {
-        user_identifier: payload.userId,
-        media_id: mediaRow.id,
-        status: payload.entry?.status ?? 'Planning',
-        user_rating: payload.entry?.rating ?? null,
-        note: payload.entry?.note ?? null,
-      },
-      { onConflict: 'user_identifier,media_id' },
-    )
-    .select('status, user_rating, note')
+    .upsert(entryUpdate, { onConflict: 'user_identifier,media_id' })
+    .select('status, user_rating, note, episode_progress')
     .single()
 
   if (error) {
@@ -173,6 +190,11 @@ async function upsertMediaEntry(payload: PersistMediaPayload) {
       status: entry.status as EntryStatus,
       rating: entry.user_rating,
       note: entry.note,
+      episodeProgress:
+        typeof entry.episode_progress === 'number' &&
+        Number.isFinite(entry.episode_progress)
+          ? entry.episode_progress
+          : null,
     },
     mediaMeta: mediaRow.metadata,
   }

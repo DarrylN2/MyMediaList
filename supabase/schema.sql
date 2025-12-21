@@ -36,6 +36,7 @@ create table if not exists user_media (
   status text not null default 'Planning',
   user_rating numeric,
   note text,
+  episode_progress integer,
   first_rated_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -44,6 +45,7 @@ create table if not exists user_media (
 
 -- Forward-compatible schema updates (safe to re-run)
 alter table if exists user_media
+  add column if not exists episode_progress integer,
   add column if not exists first_rated_at timestamptz;
 
 create or replace function public.set_updated_at()
@@ -138,6 +140,5 @@ with check (
       and lists.user_identifier = auth.uid()::text
   )
 );
-
 
 

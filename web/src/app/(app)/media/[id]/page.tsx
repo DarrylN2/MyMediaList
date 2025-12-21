@@ -77,6 +77,7 @@ export default function MediaDetailPage({
   const [status, setStatus] = useState<EntryStatus>('Planning')
   const [rating, setRating] = useState<number>(0)
   const [notes, setNotes] = useState('')
+  const [episodeProgress, setEpisodeProgress] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -162,6 +163,7 @@ export default function MediaDetailPage({
       setStatus('Planning')
       setRating(0)
       setNotes('')
+      setEpisodeProgress(null)
       return
     }
 
@@ -187,7 +189,12 @@ export default function MediaDetailPage({
         }
 
         const payload = (await response.json()) as {
-          entry: { status?: EntryStatus; rating?: number; note?: string } | null
+          entry: {
+            status?: EntryStatus
+            rating?: number
+            note?: string
+            episodeProgress?: number | null
+          } | null
         }
 
         if (controller.signal.aborted) {
@@ -198,10 +205,17 @@ export default function MediaDetailPage({
           setStatus(payload.entry.status ?? 'Planning')
           setRating(payload.entry.rating ?? 0)
           setNotes(payload.entry.note ?? '')
+          setEpisodeProgress(
+            typeof payload.entry.episodeProgress === 'number' &&
+              Number.isFinite(payload.entry.episodeProgress)
+              ? payload.entry.episodeProgress
+              : null,
+          )
         } else {
           setStatus('Planning')
           setRating(0)
           setNotes('')
+          setEpisodeProgress(null)
         }
       } catch (fetchError) {
         if ((fetchError as Error).name !== 'AbortError') {
@@ -530,6 +544,11 @@ export default function MediaDetailPage({
             status,
             rating,
             note: notes,
+            episodeProgress:
+              typeof episodeProgress === 'number' &&
+              Number.isFinite(episodeProgress)
+                ? episodeProgress
+                : null,
           },
         }),
       })
@@ -553,6 +572,56 @@ export default function MediaDetailPage({
   const openExternalUrl = (url: string | null | undefined) => {
     if (!url) return
     window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  const isEpisodeTrackable = media.type === 'tv' || media.type === 'anime'
+  const resolvedEpisodeCount =
+    typeof media.episodeCount === 'number' &&
+    Number.isFinite(media.episodeCount)
+      ? Math.max(0, Math.round(media.episodeCount))
+      : null
+  const episodeCount =
+    typeof resolvedEpisodeCount === 'number' && resolvedEpisodeCount > 0
+      ? resolvedEpisodeCount
+      : null
+  const episodeProgressValue =
+    typeof episodeProgress === 'number' && Number.isFinite(episodeProgress)
+      ? episodeProgress
+      : null
+  const showEpisodeProgress =
+    isEpisodeTrackable && (status === 'Watching' || status === 'Dropped')
+
+  const clampEpisodeProgress = (value: number) => {
+    const rounded = Math.max(0, Math.round(value))
+    if (episodeCount != null) {
+      return Math.min(episodeCount, rounded)
+    }
+    return rounded
+  }
+
+  const handleEpisodeProgressChange = (next: number | null) => {
+    if (!isEpisodeTrackable) return
+    if (status === 'Dropped') {
+      if (next == null || next <= 0) {
+        return
+      }
+      const clamped = clampEpisodeProgress(next)
+      setEpisodeProgress(clamped)
+      return
+    }
+
+    if (next == null || next <= 0) {
+      setStatus('Planning')
+      return
+    }
+
+    const clamped = clampEpisodeProgress(next)
+    setEpisodeProgress(clamped)
+    if (episodeCount != null && clamped >= episodeCount) {
+      setStatus('Completed')
+    } else {
+      setStatus('Watching')
+    }
   }
 
   const statusMediaType =
@@ -1492,6 +1561,59 @@ export default function MediaDetailPage({
                       mediaType={statusMediaType}
                     />
                   </div>
+
+                  {showEpisodeProgress ? (
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">
+                        Episode progress
+                      </label>
+                      <div className="space-y-2">
+                        {episodeCount != null ? (
+                          <input
+                            type="range"
+                            min={0}
+                            max={episodeCount}
+                            value={episodeProgressValue ?? 0}
+                            onChange={(event) =>
+                              handleEpisodeProgressChange(
+                                Number(event.target.value),
+                              )
+                            }
+                            className="w-full"
+                            aria-label="Episode progress slider"
+                          />
+                        ) : null}
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={episodeCount ?? undefined}
+                            value={
+                              episodeProgressValue != null
+                                ? String(episodeProgressValue)
+                                : ''
+                            }
+                            onChange={(event) => {
+                              const raw = event.target.value.trim()
+                              if (!raw) {
+                                handleEpisodeProgressChange(null)
+                                return
+                              }
+                              const next = Number(raw)
+                              if (!Number.isFinite(next)) return
+                              handleEpisodeProgressChange(next)
+                            }}
+                            className="w-28"
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            {episodeCount != null
+                              ? `/ ${episodeCount}`
+                              : 'episodes'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div>
                     <label className="mb-2 block text-sm font-medium">

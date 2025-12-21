@@ -6,6 +6,7 @@ type RatedEntry = {
   status: EntryStatus
   rating: number
   note: string | null
+  episodeProgress: number | null
   updatedAt: string
   firstRatedAt: string | null
   media: {
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
           status,
           user_rating,
           note,
+          episode_progress,
           updated_at,
           first_rated_at,
           media_items (
@@ -93,6 +95,11 @@ export async function GET(request: NextRequest) {
           status: row.status as EntryStatus,
           rating: Number(row.user_rating),
           note: row.note ?? null,
+          episodeProgress:
+            typeof row.episode_progress === 'number' &&
+            Number.isFinite(row.episode_progress)
+              ? row.episode_progress
+              : null,
           updatedAt: row.updated_at as string,
           firstRatedAt: (row.first_rated_at as string | null) ?? null,
           media: {

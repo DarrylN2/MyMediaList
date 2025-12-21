@@ -68,7 +68,9 @@ export async function GET(
     const { data: entries, error: entryError } = mediaIds.length
       ? await supabase
           .from('user_media')
-          .select('media_id,status,user_rating,note,updated_at,first_rated_at')
+          .select(
+            'media_id,status,user_rating,note,episode_progress,updated_at,first_rated_at',
+          )
           .eq('user_identifier', userId)
           .in('media_id', mediaIds)
       : { data: [], error: null }
@@ -82,6 +84,11 @@ export async function GET(
           status: entry.status as EntryStatus,
           rating: (entry.user_rating as number | null) ?? null,
           note: (entry.note as string | null) ?? null,
+          episodeProgress:
+            typeof entry.episode_progress === 'number' &&
+            Number.isFinite(entry.episode_progress)
+              ? entry.episode_progress
+              : null,
           updatedAt: entry.updated_at as string,
           firstRatedAt: (entry.first_rated_at as string | null) ?? null,
         },

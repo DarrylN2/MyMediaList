@@ -73,5 +73,6 @@ export interface Entry {
   startedAt?: Date | string
   finishedAt?: Date | string
   notes?: string
+  episodeProgress?: number | null
   createdAt: Date | string
 }
