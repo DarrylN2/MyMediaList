@@ -10,6 +10,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -204,6 +210,15 @@ export function MediaListItem({
   const showEpisodeProgress =
     isEpisodeTrackable &&
     (onChangeEpisodeProgress || episodeProgressValue != null)
+
+  const episodeTriggerLabel =
+    episodeProgressValue != null
+      ? episodeCountValue != null
+        ? `EP ${episodeProgressValue}/${episodeCountValue}`
+        : `EP ${episodeProgressValue}`
+      : episodeCountValue != null
+        ? `EP ?/${episodeCountValue}`
+        : 'Set EP'
 
   const handleEpisodeProgressInput = (raw: string) => {
     if (!onChangeEpisodeProgress) return
@@ -600,50 +615,75 @@ export function MediaListItem({
             <RatingStars rating={rating ?? 0} size="sm" />
           )}
 
-          {showEpisodeProgress ? (
-            <div className="space-y-2">
-              {episodeCountValue != null ? (
-                <input
-                  type="range"
-                  min={0}
-                  max={episodeCountValue}
-                  value={episodeProgressValue ?? 0}
-                  onChange={(event) =>
-                    handleEpisodeProgressSlider(event.target.value)
-                  }
-                  className="w-full"
-                  aria-label="Episode progress slider"
-                  disabled={busy}
-                />
-              ) : null}
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={0}
-                  max={episodeCountValue ?? undefined}
-                  value={
-                    episodeProgressValue != null
-                      ? String(episodeProgressValue)
-                      : ''
-                  }
-                  onChange={(event) =>
-                    handleEpisodeProgressInput(event.target.value)
-                  }
-                  className="h-8 w-20"
-                  disabled={busy}
-                  aria-label="Episode progress"
-                />
-                <span className="text-xs text-muted-foreground">
-                  {episodeCountValue != null
-                    ? `/ ${episodeCountValue}`
-                    : 'episodes'}
-                </span>
-              </div>
-            </div>
-          ) : null}
-
           <div className="flex items-center justify-between gap-2">
-            <div>{statusNode}</div>
+            <div className="flex items-center gap-2">
+              <div>{statusNode}</div>
+              {showEpisodeProgress ? (
+                onChangeEpisodeProgress ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Badge
+                        asChild
+                        variant="outline"
+                        className="cursor-pointer select-none"
+                      >
+                        <button
+                          type="button"
+                          disabled={busy}
+                          className="disabled:pointer-events-none disabled:opacity-50"
+                        >
+                          {episodeTriggerLabel}
+                        </button>
+                      </Badge>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-64">
+                      <DropdownMenuLabel>Episode progress</DropdownMenuLabel>
+                      <div className="space-y-2 p-2">
+                        {episodeCountValue != null ? (
+                          <input
+                            type="range"
+                            min={0}
+                            max={episodeCountValue}
+                            value={episodeProgressValue ?? 0}
+                            onChange={(event) =>
+                              handleEpisodeProgressSlider(event.target.value)
+                            }
+                            className="w-full"
+                            aria-label="Episode progress slider"
+                            disabled={busy}
+                          />
+                        ) : null}
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={episodeCountValue ?? undefined}
+                            value={
+                              episodeProgressValue != null
+                                ? String(episodeProgressValue)
+                                : ''
+                            }
+                            onChange={(event) =>
+                              handleEpisodeProgressInput(event.target.value)
+                            }
+                            className="h-9 w-24"
+                            disabled={busy}
+                            aria-label="Episode progress"
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            {episodeCountValue != null
+                              ? `/ ${episodeCountValue}`
+                              : 'episodes'}
+                          </span>
+                        </div>
+                      </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Badge variant="outline">{episodeTriggerLabel}</Badge>
+                )
+              ) : null}
+            </div>
             <div className="text-right">{entryDate}</div>
           </div>
         </div>
@@ -795,56 +835,88 @@ export function MediaListItem({
           </div>
         </section>
 
-        {showEpisodeProgress ? (
-          <section className="rounded-2xl border border-slate-100 bg-white/70 p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Episode progress
-            </div>
-            <div className="mt-2 space-y-2">
-              {episodeCountValue != null ? (
-                <input
-                  type="range"
-                  min={0}
-                  max={episodeCountValue}
-                  value={episodeProgressValue ?? 0}
-                  onChange={(event) =>
-                    handleEpisodeProgressSlider(event.target.value)
-                  }
-                  className="w-full"
-                  aria-label="Episode progress slider"
-                  disabled={busy}
-                />
-              ) : null}
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={0}
-                  max={episodeCountValue ?? undefined}
-                  value={
-                    episodeProgressValue != null
-                      ? String(episodeProgressValue)
-                      : ''
-                  }
-                  onChange={(event) =>
-                    handleEpisodeProgressInput(event.target.value)
-                  }
-                  className="h-9 w-24"
-                  disabled={busy}
-                  aria-label="Episode progress"
-                />
-                <span className="text-xs text-muted-foreground">
-                  {episodeCountValue != null
-                    ? `/ ${episodeCountValue}`
-                    : 'episodes'}
-                </span>
-              </div>
-            </div>
-          </section>
-        ) : null}
-
         <div className="mt-auto flex items-center justify-end gap-2 text-xs">
           {statusNode ? (
             <div className="text-foreground">{statusNode}</div>
+          ) : null}
+          {showEpisodeProgress ? (
+            onChangeEpisodeProgress ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Badge
+                    asChild
+                    variant="outline"
+                    className="cursor-pointer select-none"
+                  >
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      {episodeProgressValue != null
+                        ? episodeCountValue != null
+                          ? `EP ${episodeProgressValue}/${episodeCountValue}`
+                          : `EP ${episodeProgressValue}`
+                        : episodeCountValue != null
+                          ? `EP —/${episodeCountValue}`
+                          : 'Set EP'}
+                    </button>
+                  </Badge>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuLabel>Episode progress</DropdownMenuLabel>
+                  <div className="space-y-2 p-2">
+                    {episodeCountValue != null ? (
+                      <input
+                        type="range"
+                        min={0}
+                        max={episodeCountValue}
+                        value={episodeProgressValue ?? 0}
+                        onChange={(event) =>
+                          handleEpisodeProgressSlider(event.target.value)
+                        }
+                        className="w-full"
+                        aria-label="Episode progress slider"
+                        disabled={busy}
+                      />
+                    ) : null}
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={episodeCountValue ?? undefined}
+                        value={
+                          episodeProgressValue != null
+                            ? String(episodeProgressValue)
+                            : ''
+                        }
+                        onChange={(event) =>
+                          handleEpisodeProgressInput(event.target.value)
+                        }
+                        className="h-9 w-24"
+                        disabled={busy}
+                        aria-label="Episode progress"
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {episodeCountValue != null
+                          ? `/ ${episodeCountValue}`
+                          : 'episodes'}
+                      </span>
+                    </div>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Badge variant="outline">
+                {episodeProgressValue != null
+                  ? episodeCountValue != null
+                    ? `EP ${episodeProgressValue}/${episodeCountValue}`
+                    : `EP ${episodeProgressValue}`
+                  : episodeCountValue != null
+                    ? `EP —/${episodeCountValue}`
+                    : 'EP'}
+              </Badge>
+            )
           ) : null}
           <div className="flex items-center gap-2 text-muted-foreground">
             <Calendar className="h-4 w-4" />
