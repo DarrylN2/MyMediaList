@@ -797,13 +797,6 @@ export default function ListsPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <Badge variant="secondary" className="capitalize">
-                            Custom
-                          </Badge>
-                          <span>{list.itemCount} items</span>
-                        </div>
-
                         <div>
                           <h3 className="text-lg font-semibold text-foreground">
                             {list.title}
@@ -870,13 +863,6 @@ export default function ListsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="secondary" className="capitalize">
-                          {list.type}
-                        </Badge>
-                        <span>{list.itemCount} items</span>
-                      </div>
-
                       <div>
                         <h3 className="text-lg font-semibold text-foreground">
                           {list.title}
