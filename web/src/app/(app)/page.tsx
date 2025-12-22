@@ -7,7 +7,6 @@ import { TodaySection } from '@/components/main-page/TodaySection'
 import { TimelineSection } from '@/components/main-page/TimelineSection'
 import { StatsSection } from '@/components/main-page/StatsSection'
 import { RecentlyAddedSection } from '@/components/main-page/RecentlyAddedSection'
-import { SurpriseMeCard } from '@/components/main-page/SurpriseMeCard'
 import type {
   ActivityChip,
   ContinueItem,
@@ -304,7 +303,7 @@ export default function Home() {
   )
 
   return (
-    <div className="space-y-12 pb-6">
+    <div className="space-y-8 pb-6">
       {error ? (
         <div className="rounded-2xl border border-border bg-card/80 p-4 text-sm text-muted-foreground">
           {error}
@@ -323,7 +322,6 @@ export default function Home() {
       <RecentlyAddedSection items={recentItems} />
       <TimelineSection groups={timelineGroups} />
       <StatsSection stats={stats} />
-      <SurpriseMeCard />
     </div>
   )
 }

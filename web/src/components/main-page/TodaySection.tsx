@@ -31,14 +31,14 @@ export function TodaySection({
   activityChips: ActivityChip[]
 }) {
   return (
-    <section className="py-6 md:py-8">
-      <div className="mb-5 flex items-center justify-between">
+    <section className="py-3 md:py-4">
+      <div className="mb-4 flex items-center justify-between">
         <h2 className="text-2xl font-semibold">Today</h2>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
         <div>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Continue
           </p>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -114,7 +114,7 @@ export function TodaySection({
         </div>
 
         <div>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Activity
           </p>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">

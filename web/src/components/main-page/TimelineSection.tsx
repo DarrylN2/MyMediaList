@@ -1,23 +1,31 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import type { TimelineGroup } from '@/components/main-page/types'
+import { buildMediaRouteId } from '@/lib/media-route'
+
+function formatShortDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Unknown'
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
 
 export function TimelineSection({ groups }: { groups: TimelineGroup[] }) {
   return (
-    <section className="py-6 md:py-8">
-      <h2 className="mb-6 text-center text-2xl font-semibold">Timeline</h2>
+    <section className="py-3 md:py-4">
+      <h2 className="mb-4 text-center text-2xl font-semibold">Timeline</h2>
       {groups.length ? (
         <div className="relative mx-auto max-w-3xl">
           <div className="absolute left-6 top-0 h-full w-px bg-border/70 md:left-8" />
-          <div className="space-y-10">
+          <div className="space-y-8">
             {groups.map((group, index) => (
               <div key={group.id} className="relative flex items-start gap-6">
-                {index === 0 && (
+                {index === 0 ? (
                   <div className="absolute -top-6 left-0 text-xs font-semibold text-muted-foreground">
                     {group.year}
                   </div>
-                )}
+                ) : null}
                 <div className="flex w-14 flex-col items-center md:w-16">
                   <div className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full border-4 border-background bg-primary text-xs font-semibold text-primary-foreground shadow-sm">
                     {group.month.slice(0, 1)}
@@ -31,13 +39,18 @@ export function TimelineSection({ groups }: { groups: TimelineGroup[] }) {
                     +{group.count} items
                   </div>
                   {group.items.map((item) => (
-                    <div
+                    <Link
                       key={`${item.media.provider}:${item.media.providerId}`}
-                      className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-sm"
+                      href={`/media/${buildMediaRouteId({
+                        provider: item.media.provider,
+                        providerId: item.media.providerId,
+                        type: item.media.type,
+                      })}`}
+                      className="group block overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-sm transition hover:shadow-md"
                     >
-                      <div className="flex gap-4">
+                      <div className="flex gap-4 p-4">
                         {item.media.posterUrl ? (
-                          <div className="relative h-24 w-16 shrink-0">
+                          <div className="relative h-24 w-16 shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted">
                             <Image
                               src={item.media.posterUrl}
                               alt={item.media.title}
@@ -47,20 +60,62 @@ export function TimelineSection({ groups }: { groups: TimelineGroup[] }) {
                             />
                           </div>
                         ) : (
-                          <div className="flex h-24 w-16 shrink-0 items-center justify-center bg-muted text-xs text-muted-foreground">
+                          <div className="flex h-24 w-16 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted text-xs text-muted-foreground">
                             No image
                           </div>
                         )}
-                        <div className="flex-1 p-4">
-                          <h3 className="text-sm font-semibold">
-                            {item.media.title}
-                          </h3>
-                          <p className="text-xs text-muted-foreground">
-                            {item.media.type} · {item.media.year ?? 'Unknown'}
-                          </p>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h3 className="text-sm font-semibold group-hover:underline">
+                                <span className="line-clamp-1">
+                                  {item.media.title}
+                                </span>
+                              </h3>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {item.media.type} •{' '}
+                                {item.media.year ?? 'Unknown'}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {item.rating != null && item.rating > 0 ? (
+                                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                                  {item.rating}/10
+                                </span>
+                              ) : null}
+                              <span className="text-xs text-muted-foreground">
+                                {formatShortDate(item.createdAt)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {item.media.description ? (
+                            <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
+                              {item.media.description}
+                            </p>
+                          ) : null}
+
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-border bg-background px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                              {item.status}
+                            </span>
+                            {(item.media.genres ?? [])
+                              .filter(Boolean)
+                              .slice(0, 2)
+                              .map((genre) => (
+                                <span
+                                  key={`${item.media.provider}:${item.media.providerId}:genre:${genre}`}
+                                  className="rounded-full border border-border bg-card px-2 py-0.5 text-xs text-muted-foreground"
+                                >
+                                  {genre}
+                                </span>
+                              ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </div>

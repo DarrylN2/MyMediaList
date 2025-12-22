@@ -32,8 +32,8 @@ const formatShortDate = (value: string) => {
 
 export function RecentlyAddedSection({ items }: { items: DashboardEntry[] }) {
   return (
-    <section className="py-6 md:py-8">
-      <div className="mb-5 flex items-center justify-between">
+    <section className="py-3 md:py-4">
+      <div className="mb-4 flex items-center justify-between">
         <h2 className="text-2xl font-semibold">Recently added</h2>
         <Link
           href="/search"
