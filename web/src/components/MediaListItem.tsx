@@ -565,7 +565,7 @@ export function MediaListItem({
 
   if (viewMode === 'grid') {
     return (
-      <article className="overflow-hidden rounded-3xl border border-white/70 bg-white/95 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+      <article className="hover-lift overflow-hidden rounded-3xl border border-white/70 bg-white/95 shadow-sm transition hover:shadow-lg">
         <Link href={href} className="block">
           <div className="relative aspect-[3/4] w-full bg-muted">
             {posterUrl ? (
@@ -721,7 +721,7 @@ export function MediaListItem({
   const ratingNumber = rating != null && rating > 0 ? rating : null
 
   return (
-    <article className="flex flex-col gap-5 rounded-3xl border border-white/70 bg-white/95 p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg md:flex-row md:items-stretch">
+    <article className="hover-lift flex flex-col gap-5 rounded-3xl border border-white/70 bg-white/95 p-5 shadow-sm transition hover:shadow-lg md:flex-row md:items-stretch">
       <div className="flex w-28 flex-col items-start gap-2 md:w-36">
         <Link
           href={href}

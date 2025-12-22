@@ -190,6 +190,30 @@
     animation: orbit-counter 120s linear infinite;
   }
 
+  .fade-up {
+    animation: fade-up 0.6s ease both;
+  }
+
+  .fade-up-delay-1 {
+    animation-delay: 0.08s;
+  }
+
+  .fade-up-delay-2 {
+    animation-delay: 0.16s;
+  }
+
+  .fade-up-delay-3 {
+    animation-delay: 0.24s;
+  }
+
+  .hover-lift {
+    transition: transform 0.2s ease;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-4px);
+  }
+
   .media-float-bg {
     position: fixed;
     inset: -12vh -10vw;
@@ -260,6 +284,17 @@
         rotate(calc(var(--rotate) - 1.5deg));
     }
   }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -270,5 +305,13 @@
 
   .media-bg-poster {
     animation: none;
+  }
+
+  .fade-up {
+    animation: none;
+  }
+
+  .hover-lift:hover {
+    transform: none;
   }
 }

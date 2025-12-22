@@ -789,7 +789,7 @@ export default function MediaDetailPage({
           {/* Content aligned to main container */}
           <div className="relative mx-auto max-w-7xl px-4 pt-10 pb-12">
             <div className="grid gap-6 md:grid-cols-[300px_1fr]">
-              <div className="relative mx-auto w-full max-w-[300px] overflow-hidden rounded-2xl border bg-card shadow-sm aspect-[2/3] md:mx-0">
+              <div className="hover-lift relative mx-auto w-full max-w-[300px] overflow-hidden rounded-2xl border bg-card shadow-sm aspect-[2/3] md:mx-0">
                 {media.posterUrl ? (
                   <Image
                     src={media.posterUrl}

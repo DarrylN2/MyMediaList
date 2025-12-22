@@ -1259,7 +1259,7 @@ function TrackSearchResultCard({
   }
 
   return (
-    <article className="group relative flex items-center gap-3 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-within:ring-2 focus-within:ring-indigo-500/40 sm:gap-4 sm:p-4">
+    <article className="hover-lift fade-up group relative flex items-center gap-3 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm transition hover:shadow-lg focus-within:ring-2 focus-within:ring-indigo-500/40 sm:gap-4 sm:p-4">
       <div className="shrink-0">
         {item.coverUrl ? (
           <Image
@@ -1452,7 +1452,7 @@ function AlbumSearchResultCard({
           onSelect()
         }
       }}
-      className="group relative flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-within:ring-2 focus-within:ring-indigo-500/40 focus-visible:outline-none sm:gap-4 sm:p-4"
+      className="hover-lift fade-up group relative flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm transition hover:shadow-lg focus-within:ring-2 focus-within:ring-indigo-500/40 focus-visible:outline-none sm:gap-4 sm:p-4"
     >
       <div className="shrink-0">
         {item.coverUrl ? (
@@ -1613,7 +1613,7 @@ function SearchResultCard({
           onSelect()
         }
       }}
-      className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 md:flex-row md:items-stretch"
+      className="hover-lift fade-up flex flex-col gap-3 rounded-xl border border-slate-100 bg-white/95 p-3 shadow-sm transition hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 md:flex-row md:items-stretch"
     >
       <div className="flex flex-1 gap-4">
         <div className="relative w-24 aspect-[2/3] flex-shrink-0 overflow-hidden rounded-xl">

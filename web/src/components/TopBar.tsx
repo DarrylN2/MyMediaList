@@ -126,10 +126,8 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/80 backdrop-blur-xl">
       <div className="mx-auto max-w-[1440px] px-4 py-3 md:px-6">
-        <div className="grid items-center gap-3 md:grid-cols-[1fr_auto_1fr]">
-          <div className="hidden md:block" />
-
-          <div className="flex items-center gap-3">
+        <div className="grid items-center gap-3 md:grid-cols-[1fr_auto]">
+          <div className="flex items-center justify-center gap-3">
             <Button
               type="button"
               variant="ghost"
@@ -141,7 +139,6 @@ export function TopBar() {
                 <Home className="h-4 w-4" />
               </Link>
             </Button>
-
             <form
               className="relative hidden w-[min(720px,70vw)] md:block"
               onSubmit={handleSubmit}

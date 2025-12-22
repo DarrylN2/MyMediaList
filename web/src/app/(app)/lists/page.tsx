@@ -790,7 +790,7 @@ export default function ListsPage() {
                   href={`/lists/${list.id}`}
                   className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                 >
-                  <article className="flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/95 p-4 shadow-md transition group-hover:-translate-y-0.5 group-hover:shadow-lg sm:flex-row sm:items-center sm:gap-6">
+                  <article className="hover-lift fade-up flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/95 p-4 shadow-md transition group-hover:shadow-lg sm:flex-row sm:items-center sm:gap-6">
                     <div className="flex flex-1 items-center gap-4">
                       <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 text-xl font-semibold text-indigo-700">
                         {list.title.slice(0, 1).toUpperCase()}

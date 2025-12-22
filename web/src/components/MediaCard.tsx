@@ -11,7 +11,7 @@ interface MediaCardProps {
 
 export function MediaCard({ media, onAdd }: MediaCardProps) {
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden fade-up hover-lift">
       <Link href={`/media/${media.id}`}>
         <div className="relative aspect-[2/3] w-full overflow-hidden">
           {media.posterUrl ? (

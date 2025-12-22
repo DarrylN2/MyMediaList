@@ -133,7 +133,7 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
 
   return (
     <section className="relative py-4 md:py-6">
-      <div className="mb-6 space-y-2 text-center">
+      <div className="mb-6 flex flex-col items-center space-y-2 text-center md:-translate-x-6">
         <h1 className="mx-auto max-w-3xl text-3xl font-bold tracking-tight md:text-4xl">
           Your personal list for{' '}
           <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
