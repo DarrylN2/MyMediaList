@@ -112,3 +112,104 @@ export async function GET(
     return NextResponse.json({ error: 'Unable to load list.' }, { status: 500 })
   }
 }
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params
+  const payload = (await request.json()) as {
+    userId?: string
+    title?: string
+    description?: string | null
+  }
+
+  const userId = payload.userId?.trim()
+  const title = payload.title?.trim()
+  const description = payload.description?.trim()
+
+  if (!userId || !title) {
+    return NextResponse.json(
+      { error: 'Missing userId or title.' },
+      { status: 400 },
+    )
+  }
+
+  try {
+    const supabase = getSupabaseServerClient()
+    const { data, error } = await supabase
+      .from('lists')
+      .update({
+        title,
+        description: description || null,
+      })
+      .eq('id', id)
+      .eq('user_identifier', userId)
+      .select('id,title,description,updated_at')
+      .single()
+
+    if (error) throw error
+    if (!data) {
+      return NextResponse.json({ error: 'List not found.' }, { status: 404 })
+    }
+
+    return NextResponse.json({ list: data })
+  } catch (error) {
+    console.error('Failed to update list', error)
+    return NextResponse.json(
+      { error: 'Unable to update list.' },
+      { status: 500 },
+    )
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params
+  const { searchParams } = new URL(request.url)
+  const userId = searchParams.get('userId')
+
+  if (!userId) {
+    return NextResponse.json({ error: 'Missing userId.' }, { status: 400 })
+  }
+
+  try {
+    const supabase = getSupabaseServerClient()
+    const { data: listRow, error: listError } = await supabase
+      .from('lists')
+      .select('id')
+      .eq('id', id)
+      .eq('user_identifier', userId)
+      .maybeSingle()
+
+    if (listError) throw listError
+    if (!listRow) {
+      return NextResponse.json({ error: 'List not found.' }, { status: 404 })
+    }
+
+    const { error: itemDeleteError } = await supabase
+      .from('list_items')
+      .delete()
+      .eq('list_id', id)
+
+    if (itemDeleteError) throw itemDeleteError
+
+    const { error: deleteError } = await supabase
+      .from('lists')
+      .delete()
+      .eq('id', id)
+      .eq('user_identifier', userId)
+
+    if (deleteError) throw deleteError
+
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error('Failed to delete list', error)
+    return NextResponse.json(
+      { error: 'Unable to delete list.' },
+      { status: 500 },
+    )
+  }
+}

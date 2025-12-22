@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, MessageSquareText, Pencil, Star } from 'lucide-react'
+import { Calendar, MessageSquareText, Pencil, Star, Trash2 } from 'lucide-react'
 
 import type { EntryStatus, MediaType } from '@/types'
 import { Badge } from '@/components/ui/badge'
@@ -78,6 +78,7 @@ export interface MediaListItemProps {
   onChangeRating?: (next: number) => Promise<void> | void
   onSaveNote?: (next: string) => Promise<void> | void
   onChangeEpisodeProgress?: (next: number | null) => Promise<void> | void
+  onRemove?: () => Promise<void> | void
 
   busy?: boolean
 }
@@ -136,11 +137,14 @@ export function MediaListItem({
   onChangeRating,
   onSaveNote,
   onChangeEpisodeProgress,
+  onRemove,
   busy = false,
 }: MediaListItemProps) {
   const [editingStatus, setEditingStatus] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [noteDraft, setNoteDraft] = useState(note ?? '')
+  const [removeOpen, setRemoveOpen] = useState(false)
+  const [removeBusy, setRemoveBusy] = useState(false)
 
   const openNoteEditor = () => {
     setNoteDraft(note ?? '')
@@ -180,6 +184,17 @@ export function MediaListItem({
     if (!onSaveNote) return
     await onSaveNote(noteDraft.trim())
     setNoteOpen(false)
+  }
+
+  const handleRemove = async () => {
+    if (!onRemove) return
+    setRemoveBusy(true)
+    try {
+      await onRemove()
+      setRemoveOpen(false)
+    } finally {
+      setRemoveBusy(false)
+    }
   }
 
   const statusNode =
@@ -340,6 +355,52 @@ export function MediaListItem({
       </>
     ) : null
 
+  const removeButton = onRemove ? (
+    <>
+      <button
+        type="button"
+        className="rounded-full border border-slate-200 bg-white/90 p-1 text-slate-500 shadow-sm transition hover:text-rose-600"
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          setRemoveOpen(true)
+        }}
+        aria-label="Remove from list"
+        disabled={busy || removeBusy}
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+      <Dialog open={removeOpen} onOpenChange={setRemoveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove entry?</DialogTitle>
+            <DialogDescription>
+              This will remove "{title}" from this list.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRemoveOpen(false)}
+              disabled={removeBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleRemove}
+              disabled={removeBusy}
+            >
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  ) : null
+
   const entryDate = (
     <span className="text-xs text-muted-foreground">
       {hasEntry ? `${entryDateLabel} ${formatShortDate(entryDateIso)}` : null}
@@ -412,7 +473,12 @@ export function MediaListItem({
       rating != null && rating > 0 ? String(rating) : String(0)
 
     return (
-      <div className="grid grid-cols-[96px_260px_1fr_80px_100px_140px_120px_160px_120px] items-start gap-3 px-2 py-3">
+      <div className="group relative grid grid-cols-[96px_260px_1fr_80px_100px_140px_120px_160px_120px] items-start gap-3 px-2 py-3">
+        {removeButton ? (
+          <div className="pointer-events-none absolute right-2 top-2 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100">
+            {removeButton}
+          </div>
+        ) : null}
         <div className="flex flex-col items-start">
           <Link
             href={href}
@@ -565,7 +631,12 @@ export function MediaListItem({
 
   if (viewMode === 'grid') {
     return (
-      <article className="hover-lift overflow-hidden rounded-3xl border border-white/70 bg-white/95 shadow-sm transition hover:shadow-lg">
+      <article className="group hover-lift relative overflow-hidden rounded-3xl border border-white/70 bg-white/95 shadow-sm transition hover:shadow-lg">
+        {removeButton ? (
+          <div className="pointer-events-none absolute right-3 top-3 z-10 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100">
+            {removeButton}
+          </div>
+        ) : null}
         <Link href={href} className="block">
           <div className="relative aspect-[3/4] w-full bg-muted">
             {posterUrl ? (
@@ -721,7 +792,12 @@ export function MediaListItem({
   const ratingNumber = rating != null && rating > 0 ? rating : null
 
   return (
-    <article className="hover-lift flex flex-col gap-5 rounded-3xl border border-white/70 bg-white/95 p-5 shadow-sm transition hover:shadow-lg md:flex-row md:items-stretch">
+    <article className="group hover-lift relative flex flex-col gap-5 rounded-3xl border border-white/70 bg-white/95 p-5 shadow-sm transition hover:shadow-lg md:flex-row md:items-stretch">
+      {removeButton ? (
+        <div className="pointer-events-none absolute right-4 top-4 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100">
+          {removeButton}
+        </div>
+      ) : null}
       <div className="flex w-28 flex-col items-start gap-2 md:w-36">
         <Link
           href={href}

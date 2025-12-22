@@ -537,9 +537,7 @@ export function ListDetailClient({ list }: { list: MediaList }) {
             </Badge>
             <div>
               <h1 className="text-3xl font-bold">
-                <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
-                  {list.title}
-                </span>
+                <span className="text-slate-900">{list.title}</span>
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 {list.description}

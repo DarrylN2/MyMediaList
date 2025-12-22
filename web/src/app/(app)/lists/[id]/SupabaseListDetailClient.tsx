@@ -1,11 +1,20 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { LayoutGrid, List, Table as TableIcon } from 'lucide-react'
+import { LayoutGrid, List, Pencil, Table as TableIcon } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -14,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { MediaListItem } from '@/components/MediaListItem'
 import type { MediaType } from '@/types'
 
@@ -107,6 +117,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function SupabaseListDetailClient({ listId }: { listId: string }) {
+  const router = useRouter()
   const { user } = useAuth()
   const [list, setList] = useState<ListDetail | null>(null)
   const [items, setItems] = useState<ListItem[]>([])
@@ -117,6 +128,15 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
   const [sortBy, setSortBy] = useState<SortOption>('addedAt')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [typeFilter, setTypeFilter] = useState<MediaType | 'all'>('all')
+  const [editOpen, setEditOpen] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteSaving, setDeleteSaving] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [removingMediaId, setRemovingMediaId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user?.email) {
@@ -246,6 +266,104 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
         }
       }),
     )
+  }
+
+  const handleUpdateList = async () => {
+    if (!user?.email || !list || editSaving) return
+    const title = editTitle.trim()
+    if (!title) {
+      setEditError('Title is required.')
+      return
+    }
+
+    setEditSaving(true)
+    setEditError(null)
+
+    try {
+      const res = await fetch(`/api/lists/${listId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.email,
+          title,
+          description: editDescription.trim() || null,
+        }),
+      })
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to update list.')
+      }
+
+      const payload = (await res.json()) as { list: ListDetail }
+      setList(payload.list)
+      setEditOpen(false)
+    } catch (error) {
+      setEditError(
+        error instanceof Error ? error.message : 'Unable to update list.',
+      )
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  const handleDeleteList = async () => {
+    if (!user?.email || deleteSaving) return
+
+    setDeleteSaving(true)
+    setDeleteError(null)
+
+    try {
+      const res = await fetch(
+        `/api/lists/${listId}?userId=${encodeURIComponent(user.email)}`,
+        { method: 'DELETE' },
+      )
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to delete list.')
+      }
+
+      setDeleteOpen(false)
+      setEditOpen(false)
+      router.push('/lists')
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : 'Unable to delete list.',
+      )
+    } finally {
+      setDeleteSaving(false)
+    }
+  }
+
+  const handleRemoveEntry = async (entry: (typeof processedItems)[number]) => {
+    if (!user?.email || removingMediaId) return
+    const mediaId = entry.media.id
+    setRemovingMediaId(mediaId)
+    try {
+      const res = await fetch(
+        `/api/lists/${listId}/items?userId=${encodeURIComponent(
+          user.email,
+        )}&mediaId=${encodeURIComponent(mediaId)}`,
+        { method: 'DELETE' },
+      )
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to remove item.')
+      }
+      setItems((prev) =>
+        prev.filter((row) => {
+          const media = Array.isArray(row.media_items)
+            ? row.media_items[0]
+            : row.media_items
+          return media?.id !== mediaId
+        }),
+      )
+    } catch (error) {
+      console.error('Failed to remove list item', error)
+    } finally {
+      setRemovingMediaId(null)
+    }
   }
 
   const handleEpisodeProgressUpdate = async (
@@ -562,6 +680,8 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                     }
                   }
                 }}
+                onRemove={() => handleRemoveEntry(entry)}
+                busy={removingMediaId === entry.media.id}
               />
             ))}
           </div>
@@ -764,6 +884,8 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                   }
                 }
               }}
+              onRemove={() => handleRemoveEntry(entry)}
+              busy={removingMediaId === entry.media.id}
             />
           ))}
         </div>
@@ -965,6 +1087,8 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                 }
               }
             }}
+            onRemove={() => handleRemoveEntry(entry)}
+            busy={removingMediaId === entry.media.id}
           />
         ))}
       </div>
@@ -1002,17 +1126,33 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
               <Badge variant="outline">{processedItems.length} items</Badge>
             </div>
             <h1 className="mt-2 text-3xl font-bold">
-              <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
-                {list.title}
-              </span>
+              <span className="text-slate-900">{list.title}</span>
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {list.description ?? '—'}
             </p>
           </div>
-          <Button variant="outline" asChild>
-            <Link href="/lists">Back to lists</Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                if (list) {
+                  setEditTitle(list.title)
+                  setEditDescription(list.description ?? '')
+                }
+                setEditError(null)
+                setDeleteError(null)
+                setEditOpen(true)
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+              Edit list
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/lists">Back to lists</Link>
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
@@ -1098,6 +1238,114 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
           </div>
         </div>
       </header>
+
+      <Dialog
+        open={editOpen}
+        onOpenChange={(open) => {
+          setEditOpen(open)
+          if (open && list) {
+            setEditTitle(list.title)
+            setEditDescription(list.description ?? '')
+          }
+          setEditError(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit list</DialogTitle>
+            <DialogDescription>
+              Update the name or description for this list.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleUpdateList()
+            }}
+          >
+            <div className="space-y-2">
+              <Input
+                value={editTitle}
+                onChange={(event) => setEditTitle(event.target.value)}
+                placeholder="List title"
+                aria-label="List title"
+                required
+              />
+              <Textarea
+                value={editDescription}
+                onChange={(event) => setEditDescription(event.target.value)}
+                placeholder="Description (optional)"
+                aria-label="List description"
+                rows={3}
+              />
+              {editError ? (
+                <p className="text-sm text-rose-700">{editError}</p>
+              ) : null}
+              {deleteError ? (
+                <p className="text-sm text-rose-700">{deleteError}</p>
+              ) : null}
+            </div>
+
+            <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setDeleteOpen(true)}
+                disabled={editSaving || deleteSaving}
+              >
+                Delete list
+              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditOpen(false)}
+                  disabled={editSaving}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={editSaving}>
+                  {editSaving ? 'Saving...' : 'Save changes'}
+                </Button>
+              </div>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this list?</DialogTitle>
+            <DialogDescription>
+              This removes the list and all of its entries.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError ? (
+            <p className="text-sm text-rose-700">{deleteError}</p>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleteSaving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteList}
+              disabled={deleteSaving}
+            >
+              {deleteSaving ? 'Deleting...' : 'Delete list'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {items.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-muted-foreground/30 bg-white/80 p-10 text-center text-muted-foreground">
