@@ -92,13 +92,15 @@ export function StatsSection({ stats }: { stats: DashboardStats }) {
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-primary/70"
+                      className="h-full rounded-full"
                       style={{
                         width: `${
                           stats.topGenres[0]?.count
                             ? (genre.count / stats.topGenres[0].count) * 100
                             : 0
                         }%`,
+                        background:
+                          'linear-gradient(90deg, var(--primary), var(--category-tv))',
                       }}
                     />
                   </div>
@@ -119,12 +121,14 @@ export function StatsSection({ stats }: { stats: DashboardStats }) {
           value={stats.mostWatchedGenre ?? 'Unknown'}
           helper="Top genre in your list"
           Icon={Trophy}
+          tone="primary"
         />
         <StatCard
           label="Most active day"
           value={stats.mostActiveDay ?? 'Unknown'}
           helper="Based on items added"
           Icon={Calendar}
+          tone="secondary"
         />
         <StatCard
           label="Average rating"
@@ -135,6 +139,7 @@ export function StatsSection({ stats }: { stats: DashboardStats }) {
           }
           helper="Across rated entries"
           Icon={Star}
+          tone="accent"
         />
       </div>
     </section>
@@ -146,19 +151,34 @@ function StatCard({
   value,
   helper,
   Icon,
+  tone,
 }: {
   label: string
   value: string
   helper: string
   Icon: typeof Trophy
+  tone: 'primary' | 'secondary' | 'accent'
 }) {
+  const toneColorMap = {
+    primary: 'var(--primary)',
+    secondary: 'var(--category-tv)',
+    accent: 'var(--category-song)',
+  }
+  const toneColor = toneColorMap[tone]
+
   return (
     <div className="rounded-2xl border border-border/60 bg-card/80 p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
-        <span className="rounded-full bg-primary/10 p-2 text-primary">
+        <span
+          className="rounded-full p-2"
+          style={{
+            backgroundColor: `${toneColor}1a`,
+            color: toneColor,
+          }}
+        >
           <Icon className="h-4 w-4" />
         </span>
       </div>

@@ -79,6 +79,9 @@ export function TodaySection({
                 <div
                   key={item.id}
                   className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-sm transition hover:shadow-md"
+                  style={{
+                    backgroundImage: `linear-gradient(130deg, ${tone}22, transparent 50%)`,
+                  }}
                 >
                   <div className="flex gap-3 p-4">
                     <div className="relative h-20 w-14 overflow-hidden rounded-xl border border-border/60 bg-muted">

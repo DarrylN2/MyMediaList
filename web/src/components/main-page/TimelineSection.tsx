@@ -17,7 +17,13 @@ export function TimelineSection({ groups }: { groups: TimelineGroup[] }) {
       <h2 className="mb-4 text-center text-2xl font-semibold">Timeline</h2>
       {groups.length ? (
         <div className="relative mx-auto max-w-3xl">
-          <div className="absolute left-6 top-0 h-full w-px bg-border/70 md:left-8" />
+          <div
+            className="absolute left-6 top-0 h-full w-px opacity-50 md:left-8"
+            style={{
+              background:
+                'linear-gradient(180deg, var(--primary), var(--category-tv), var(--category-song))',
+            }}
+          />
           <div className="space-y-8">
             {groups.map((group, index) => (
               <div key={group.id} className="relative flex items-start gap-6">
@@ -35,7 +41,7 @@ export function TimelineSection({ groups }: { groups: TimelineGroup[] }) {
                   </div>
                 </div>
                 <div className="flex-1 space-y-3">
-                  <div className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground">
+                  <div className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
                     +{group.count} items
                   </div>
                   {group.items.map((item) => (
@@ -98,7 +104,7 @@ export function TimelineSection({ groups }: { groups: TimelineGroup[] }) {
                           ) : null}
 
                           <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <span className="rounded-full border border-border bg-background px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                            <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
                               {item.status}
                             </span>
                             {(item.media.genres ?? [])
@@ -107,7 +113,7 @@ export function TimelineSection({ groups }: { groups: TimelineGroup[] }) {
                               .map((genre) => (
                                 <span
                                   key={`${item.media.provider}:${item.media.providerId}:genre:${genre}`}
-                                  className="rounded-full border border-border bg-card px-2 py-0.5 text-xs text-muted-foreground"
+                                  className="rounded-full border border-secondary/40 bg-secondary/70 px-2 py-0.5 text-xs text-secondary-foreground"
                                 >
                                   {genre}
                                 </span>

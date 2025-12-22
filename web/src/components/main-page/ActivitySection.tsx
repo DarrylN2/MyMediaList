@@ -30,7 +30,10 @@ export function ActivitySection({
           return (
             <div
               key={chip.id}
-              className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm"
+              className="relative flex items-center gap-3 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm"
+              style={{
+                backgroundImage: `linear-gradient(120deg, ${tone}1f, transparent 55%)`,
+              }}
             >
               <div
                 className="flex h-10 w-10 items-center justify-center rounded-xl"

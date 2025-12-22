@@ -135,7 +135,10 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
     <section className="relative py-4 md:py-6">
       <div className="mb-6 space-y-2 text-center">
         <h1 className="mx-auto max-w-3xl text-3xl font-bold tracking-tight md:text-4xl">
-          Your personal list for medias
+          Your personal list for{' '}
+          <span className="bg-gradient-to-r from-primary via-[var(--category-tv)] to-[var(--category-song)] bg-clip-text text-transparent">
+            medias
+          </span>
         </h1>
         <p className="mx-auto max-w-2xl text-sm text-muted-foreground">
           Track what you&apos;re watching, rate favourites, and jump back in.
@@ -145,7 +148,7 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
       <div className="grid items-start gap-8 lg:grid-cols-[260px_minmax(0,1fr)_320px]">
         <div className="self-center text-center lg:text-left">
           <p className="text-3xl font-semibold leading-snug md:text-4xl">
-            These are your favourites →
+            These are your <span className="text-primary">favourites</span> →
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
             The center card is your top-rated pick. Hover an orbiting cover to
@@ -163,6 +166,7 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
               style={{
                 width: `${orbitRadius * 2}px`,
                 height: `${orbitRadius * 2}px`,
+                boxShadow: `0 0 0 1px ${sunColor}26 inset`,
               }}
             />
 
@@ -269,7 +273,7 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
             <button
               type="button"
               onClick={() => setIsPlaying((prev) => !prev)}
-              className="flex items-center gap-2 rounded-full border border-border bg-background/80 px-4 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground"
+              className="flex items-center gap-2 rounded-full border border-border bg-background/80 px-4 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary/60 hover:text-foreground"
             >
               {isPlaying ? (
                 <Pause className="h-4 w-4" />
@@ -281,7 +285,7 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
             <button
               type="button"
               onClick={handleShuffle}
-              className="flex items-center gap-2 rounded-full border border-border bg-background/80 px-4 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground"
+              className="flex items-center gap-2 rounded-full border border-border bg-background/80 px-4 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary/60 hover:text-foreground"
               aria-label="Shuffle orbit"
             >
               <Shuffle className="h-4 w-4" />
@@ -292,7 +296,7 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
 
         <div className="self-center">
           <div className="rounded-3xl border border-white/70 bg-white/95 p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
               Now in orbit
             </p>
             {activeItem ? (
@@ -321,7 +325,7 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
                 <div className="space-y-2 p-4">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-primary">
                         {typeLabel}
                       </span>
                       <span className="text-xs text-muted-foreground">
@@ -381,7 +385,7 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
                       providerId: activeItem.media.providerId,
                       type: activeItem.media.type,
                     })}`}
-                    className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground transition hover:border-primary/40"
+                    className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/15"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     Open details
