@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Search, Filter, User, Home } from 'lucide-react'
+import { Search, Filter, User } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -120,108 +120,126 @@ export function TopBar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
-      <div className="container mx-auto max-w-7xl px-4 py-3">
-        <div className="flex w-full justify-center">
-          <div className="flex w-full max-w-4xl items-center gap-4">
-            {/* Home Logo */}
+    <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/80 backdrop-blur-xl">
+      <div className="mx-auto max-w-[1440px] px-4 py-3 md:px-6">
+        <div className="flex items-center justify-between gap-3">
+          <Link href="/" className="flex items-center gap-2">
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white shadow-sm"
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--category-movie), var(--category-anime))',
+              }}
+            >
+              M
+            </span>
+            <span className="hidden text-sm font-semibold tracking-tight sm:inline">
+              MyMediaList
+            </span>
+            <span className="sr-only">Home</span>
+          </Link>
+
+          <form
+            className="relative hidden flex-1 max-w-2xl md:block"
+            onSubmit={handleSubmit}
+          >
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 h-8 rounded-full border border-border bg-card px-3 text-xs font-medium text-muted-foreground hover:bg-muted"
+                  aria-label="Open search filters"
+                >
+                  <Filter className="mr-1.5 h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Filter</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-52">
+                <DropdownMenuLabel>Search type</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup
+                  value={category}
+                  onValueChange={(value) =>
+                    setCategoryParam(value as SearchCategoryFilter)
+                  }
+                >
+                  {SEARCH_CATEGORY_OPTIONS.map((opt) => (
+                    <DropdownMenuRadioItem key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <button
+              type="submit"
+              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted"
+              aria-label="Search"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+            <Input
+              key={pathname === '/search' ? `search:${queryFromUrl}` : 'global'}
+              type="search"
+              name="query"
+              defaultValue={pathname === '/search' ? queryFromUrl : ''}
+              placeholder="Search movies, anime, songs, games..."
+              className="h-11 w-full rounded-2xl border border-border bg-input-background/80 pl-28 pr-12 text-sm shadow-sm focus-visible:border-primary/60 focus-visible:ring-primary/30"
+              aria-label="Search media"
+            />
+          </form>
+
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-full"
+              className="rounded-full border border-border bg-card md:hidden"
               asChild
             >
-              <Link href="/">
-                <Home className="h-5 w-5" />
-                <span className="sr-only">Home</span>
+              <Link href="/search" aria-label="Search">
+                <Search className="h-4 w-4" />
               </Link>
             </Button>
-
-            {/* Search Box with Filter */}
-            <form className="relative flex-1 max-w-2xl" onSubmit={handleSubmit}>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute left-1.5 top-1/2 -translate-y-1/2 h-8 rounded-full border bg-background/90 px-3 text-xs font-medium text-muted-foreground hover:bg-muted"
-                    aria-label="Open search filters"
-                  >
-                    <Filter className="mr-1.5 h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Filter</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-52">
-                  <DropdownMenuLabel>Search type</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuRadioGroup
-                    value={category}
-                    onValueChange={(value) =>
-                      setCategoryParam(value as SearchCategoryFilter)
-                    }
-                  >
-                    {SEARCH_CATEGORY_OPTIONS.map((opt) => (
-                      <DropdownMenuRadioItem key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <button
-                type="submit"
-                className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted"
-                aria-label="Search"
-              >
-                <Search className="h-4 w-4" />
-              </button>
-              <Input
-                key={
-                  pathname === '/search' ? `search:${queryFromUrl}` : 'global'
-                }
-                type="search"
-                name="query"
-                defaultValue={pathname === '/search' ? queryFromUrl : ''}
-                placeholder="Search movies, anime, songs, games…"
-                className="h-10 w-full rounded-full pl-28 pr-12"
-                aria-label="Search media"
-              />
-            </form>
-
-            {/* My Lists & Avatar */}
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" asChild className="text-sm">
-                <Link href="/lists">My Lists</Link>
-              </Button>
-              <Dialog open={profileOpen} onOpenChange={handleDialogChange}>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-full">
-                    {user ? (
-                      <span className="text-sm font-semibold">
-                        {profileInitial}
-                      </span>
-                    ) : (
-                      <User className="h-5 w-5" />
-                    )}
-                    <span className="sr-only">Open profile dialog</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-sm border-none bg-background/95 backdrop-blur-md shadow-2xl">
-                  <DialogHeader className="space-y-1 text-left">
-                    <DialogTitle>
-                      {user ? `Hi, ${user.username}` : 'Save your lists'}
-                    </DialogTitle>
-                    <DialogDescription>
-                      {user
-                        ? 'Manage your account and saved lists.'
-                        : 'Log in or create a free account to sync across devices.'}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <ProfileDialog />
-                </DialogContent>
-              </Dialog>
-            </div>
+            <Button
+              variant="ghost"
+              asChild
+              className="hidden rounded-full border border-transparent px-4 text-sm md:inline-flex"
+            >
+              <Link href="/lists">My Lists</Link>
+            </Button>
+            <Dialog open={profileOpen} onOpenChange={handleDialogChange}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full border border-border bg-card"
+                >
+                  {user ? (
+                    <span className="text-sm font-semibold">
+                      {profileInitial}
+                    </span>
+                  ) : (
+                    <User className="h-5 w-5" />
+                  )}
+                  <span className="sr-only">Open profile dialog</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-sm border-none bg-background/95 backdrop-blur-md shadow-2xl">
+                <DialogHeader className="space-y-1 text-left">
+                  <DialogTitle>
+                    {user ? `Hi, ${user.username}` : 'Save your lists'}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {user
+                      ? 'Manage your account and saved lists.'
+                      : 'Log in or create a free account to sync across devices.'}
+                  </DialogDescription>
+                </DialogHeader>
+                <ProfileDialog />
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </div>

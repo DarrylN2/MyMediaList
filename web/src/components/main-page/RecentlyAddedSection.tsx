@@ -1,89 +1,119 @@
 'use client'
 
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { mockRecentlyAdded } from '@/mocks'
+import Link from 'next/link'
 import Image from 'next/image'
-import { Star, Plus, Check } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Plus, ExternalLink } from 'lucide-react'
+import type { DashboardEntry } from '@/components/main-page/types'
+import { buildMediaRouteId } from '@/lib/media-route'
 
-const getMediaTypeColor = (type: string) => {
+const getCategoryColor = (type: string) => {
   switch (type) {
     case 'movie':
-      return 'bg-blue-100 text-blue-700 border-blue-300'
+      return 'var(--category-movie)'
+    case 'tv':
+      return 'var(--category-tv)'
     case 'anime':
-      return 'bg-purple-100 text-purple-700 border-purple-300'
+      return 'var(--category-anime)'
     case 'song':
     case 'album':
-      return 'bg-yellow-100 text-yellow-700 border-yellow-300'
+      return 'var(--category-song)'
     case 'game':
-      return 'bg-green-100 text-green-700 border-green-300'
+      return 'var(--category-game)'
     default:
-      return 'bg-gray-100 text-gray-700 border-gray-300'
+      return 'var(--primary)'
   }
 }
 
-export function RecentlyAddedSection() {
+const formatShortDate = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Unknown'
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+export function RecentlyAddedSection({ items }: { items: DashboardEntry[] }) {
   return (
-    <section className="py-8">
-      <h2 className="mb-6 text-3xl font-bold">Recently added</h2>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {mockRecentlyAdded.map((item) => (
-          <Card
-            key={item.id}
-            className="group overflow-hidden bg-white/80 backdrop-blur-sm transition-all hover:scale-105 hover:shadow-lg"
-          >
-            {item.media.posterUrl && (
-              <div className="relative h-48">
-                <Image
-                  src={item.media.posterUrl}
-                  alt={item.media.title}
-                  fill
-                  className="object-cover"
-                />
-                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-8 w-8 rounded-full"
+    <section className="py-6 md:py-8">
+      <div className="mb-5 flex items-center justify-between">
+        <h2 className="text-2xl font-semibold">Recently added</h2>
+        <Link
+          href="/search"
+          className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition hover:border-primary/40"
+        >
+          <Plus className="h-4 w-4" />
+          Add new
+        </Link>
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto pb-4 md:gap-4">
+        {items.length ? (
+          items.map((item) => {
+            const color = getCategoryColor(item.media.type)
+            return (
+              <div
+                key={`${item.media.provider}:${item.media.providerId}`}
+                className="group relative flex-shrink-0"
+                style={{ width: '160px' }}
+              >
+                <div className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                  <div className="relative h-56 w-full overflow-hidden">
+                    {item.media.posterUrl ? (
+                      <Image
+                        src={item.media.posterUrl}
+                        alt={item.media.title}
+                        fill
+                        className="object-cover"
+                        sizes="160px"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-muted text-xs text-muted-foreground">
+                        No image
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    <div className="absolute left-2 top-2">
+                      <span
+                        className="rounded-full px-2 py-0.5 text-xs font-semibold"
+                        style={{
+                          backgroundColor: `${color}20`,
+                          color,
+                          border: `1px solid ${color}40`,
+                        }}
+                      >
+                        {item.media.type}
+                      </span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 p-3">
+                      <p className="text-sm font-semibold text-white">
+                        {item.media.title}
+                      </p>
+                      <p className="text-xs text-white/80">
+                        {formatShortDate(item.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="absolute inset-0 flex items-center justify-center bg-white/70 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
+                  <Link
+                    href={`/media/${buildMediaRouteId({
+                      provider: item.media.provider,
+                      providerId: item.media.providerId,
+                      type: item.media.type,
+                    })}`}
+                    className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm"
+                    aria-label={`Open ${item.media.title}`}
                   >
-                    <Star className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-8 w-8 rounded-full"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-8 w-8 rounded-full"
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
+                    <ExternalLink className="h-4 w-4" />
+                  </Link>
                 </div>
               </div>
-            )}
-            <CardContent className="p-3">
-              <h3 className="mb-1 text-sm font-semibold line-clamp-1">
-                {item.media.title}
-              </h3>
-              <div className="flex items-center justify-between">
-                <Badge className={getMediaTypeColor(item.media.type)}>
-                  {item.media.type}
-                </Badge>
-                <span className="text-xs text-muted-foreground">
-                  {new Date(item.addedDate).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+            )
+          })
+        ) : (
+          <div className="rounded-2xl border border-dashed border-border bg-card/70 p-6 text-sm text-muted-foreground">
+            Nothing added yet.
+          </div>
+        )}
       </div>
     </section>
   )

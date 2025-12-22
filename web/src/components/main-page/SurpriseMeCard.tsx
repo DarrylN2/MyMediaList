@@ -6,7 +6,7 @@ import { Shuffle } from 'lucide-react'
 
 export function SurpriseMeCard() {
   return (
-    <Card className="rounded-2xl border-2 border-dashed bg-gradient-to-br from-purple-50 to-pink-50">
+    <Card className="rounded-2xl border border-dashed border-border bg-card/80 shadow-sm">
       <CardContent className="flex flex-col items-center justify-center gap-4 p-12 text-center">
         <h3 className="text-2xl font-bold">Don&apos;t know what to watch?</h3>
         <Button size="lg" className="rounded-full">
