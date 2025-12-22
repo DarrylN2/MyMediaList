@@ -577,7 +577,7 @@ function mapAniListAnimeToResult(entry: AniListMediaSummary): SearchResultItem {
   return {
     id: `anilist-anime-${entry.id}`,
     title,
-    subtitle: subtitleParts.join(' â€¢ '),
+    subtitle: subtitleParts.join(' \u2022 '),
     description: stripAniListDescription(entry.description),
     coverUrl: entry.coverImage?.large ?? undefined,
     tags,
@@ -627,7 +627,7 @@ function mapTmdbMovieToResult(
   return {
     id: `tmdb-${movie.id}`,
     title,
-    subtitle: subtitleParts.join(' â€¢ '),
+    subtitle: subtitleParts.join(' \u2022 '),
     description: movie.overview,
     coverUrl: movie.poster_path
       ? `${TMDB_IMAGE_BASE}${movie.poster_path}`
@@ -662,7 +662,7 @@ function mapTmdbTvToResult(
   return {
     id: `tmdb-tv-${show.id}`,
     title,
-    subtitle: subtitleParts.join(' â€¢ '),
+    subtitle: subtitleParts.join(' \u2022 '),
     description: show.overview,
     coverUrl: show.poster_path
       ? `${TMDB_IMAGE_BASE}${show.poster_path}`
@@ -765,7 +765,7 @@ async function searchSpotifyTracks(query: string): Promise<SearchResultItem[]> {
       return {
         id: `spotify-${providerId}`,
         title: track.name ?? 'Untitled',
-        subtitle: [artistLabel, year, 'Track'].filter(Boolean).join(' â€¢ '),
+        subtitle: [artistLabel, year, 'Track'].filter(Boolean).join(' \u2022 '),
         coverUrl: track.album?.images?.[0]?.url ?? undefined,
         tags,
         type: 'song',
@@ -809,7 +809,7 @@ async function searchSpotifyAlbums(query: string): Promise<SearchResultItem[]> {
       return {
         id: `spotify-${providerId}`,
         title: album.name ?? 'Untitled',
-        subtitle: [artistLabel, year, 'Album'].filter(Boolean).join(' â€¢ '),
+        subtitle: [artistLabel, year, 'Album'].filter(Boolean).join(' \u2022 '),
         coverUrl: album.images?.[0]?.url ?? undefined,
         tags,
         type: 'album',
