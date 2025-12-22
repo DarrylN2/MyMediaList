@@ -806,10 +806,7 @@ function SearchPageClient() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-3xl font-semibold tracking-tight">
-                Results for{' '}
-                <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
-                  {queryLabel}
-                </span>
+                Results for <span className="text-primary">{queryLabel}</span>
               </h1>
               <p className="text-sm text-muted-foreground">{summaryText}</p>
               {isLoading && (
@@ -1118,9 +1115,7 @@ function SearchCategorySection({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold">
-            <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
-              {category.title}
-            </span>
+            <span className="text-primary">{category.title}</span>
           </h2>
           {category.helper && (
             <p className="text-sm text-muted-foreground">{category.helper}</p>

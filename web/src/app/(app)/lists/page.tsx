@@ -759,10 +759,7 @@ export default function ListsPage() {
       <section className="space-y-4">
         <div>
           <h1 className="text-2xl font-semibold">
-            Your{' '}
-            <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
-              lists
-            </span>
+            Your <span className="text-primary">lists</span>
           </h1>
           <p className="text-sm text-muted-foreground">
             Browse, reorder, or share your collections at a glance.
