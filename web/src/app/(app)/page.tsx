@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { SolarSystemHero } from '@/components/main-page/SolarSystemHero'
 import { TodaySection } from '@/components/main-page/TodaySection'
+import { ActivitySection } from '@/components/main-page/ActivitySection'
 import { TimelineSection } from '@/components/main-page/TimelineSection'
 import { StatsSection } from '@/components/main-page/StatsSection'
 import { RecentlyAddedSection } from '@/components/main-page/RecentlyAddedSection'
@@ -118,7 +119,6 @@ export default function Home() {
       .filter((entry) =>
         ['Watching', 'Playing', 'Listening'].includes(entry.status),
       )
-      .slice(0, 3)
       .map((entry) => {
         const episodeCount = entry.media.episodeCount ?? null
         const episodeProgress = entry.episodeProgress ?? 0
@@ -151,10 +151,7 @@ export default function Home() {
       })
   }, [entriesByCreated])
 
-  const recentItems = useMemo(
-    () => entriesByCreated.slice(0, 8),
-    [entriesByCreated],
-  )
+  const recentItems = useMemo(() => entriesByCreated, [entriesByCreated])
 
   const timelineGroups = useMemo<TimelineGroup[]>(() => {
     const groups = new Map<
@@ -315,11 +312,13 @@ export default function Home() {
         </div>
       ) : null}
       <SolarSystemHero items={entries} />
-      <TodaySection
-        continueItems={continueItems}
-        activityChips={activityChips}
-      />
-      <RecentlyAddedSection items={recentItems} />
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="space-y-6">
+          <TodaySection continueItems={continueItems} />
+          <RecentlyAddedSection items={recentItems} />
+        </div>
+        <ActivitySection activityChips={activityChips} />
+      </div>
       <TimelineSection groups={timelineGroups} />
       <StatsSection stats={stats} />
     </div>
