@@ -6,8 +6,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,49 +48,60 @@
 
 :root {
   --radius: 1rem;
-  --background: #fff8f2;
-  --background-gradient: linear-gradient(
-    135deg,
-    #fff8f2 0%,
-    #fef1ea 45%,
-    #f6f1ff 100%
-  );
-  --foreground: #201c18;
+  --background: #fff1e8;
+  --background-gradient:
+    radial-gradient(
+      1200px 800px at 10% 5%,
+      rgba(255, 90, 111, 0.12),
+      transparent 60%
+    ),
+    radial-gradient(
+      1000px 700px at 90% 10%,
+      rgba(90, 169, 255, 0.16),
+      transparent 55%
+    ),
+    radial-gradient(
+      900px 700px at 70% 80%,
+      rgba(158, 228, 107, 0.14),
+      transparent 55%
+    ),
+    linear-gradient(135deg, #fff1e8 0%, #fffaf6 45%, #eef6ff 100%);
+  --foreground: #1e1714;
   --card: #fffdfb;
-  --card-foreground: #201c18;
-  --popover: #fffaf6;
-  --popover-foreground: #201c18;
-  --primary: #ff9bb3;
-  --primary-foreground: #2b151a;
-  --secondary: #f6eee6;
-  --secondary-foreground: #2f2420;
-  --muted: #f2ebe4;
-  --muted-foreground: #6f645f;
-  --accent: #f7e4db;
-  --accent-foreground: #2a201c;
-  --destructive: #e45b6b;
-  --border: rgba(32, 28, 24, 0.12);
-  --input: rgba(32, 28, 24, 0.16);
-  --input-background: #fff3ec;
-  --ring: #ff9bb3;
-  --chart-1: #6ea8ff;
-  --chart-2: #d58cff;
-  --chart-3: #f3b76a;
-  --chart-4: #7fd1a4;
-  --chart-5: #ff9bb3;
-  --sidebar: #fff6f0;
-  --sidebar-foreground: #201c18;
-  --sidebar-primary: #ff9bb3;
-  --sidebar-primary-foreground: #2b151a;
-  --sidebar-accent: #f6eee6;
-  --sidebar-accent-foreground: #2f2420;
-  --sidebar-border: rgba(32, 28, 24, 0.1);
-  --sidebar-ring: #ff9bb3;
-  --category-movie: #6ea8ff;
-  --category-tv: #75bce0;
-  --category-anime: #d58cff;
-  --category-song: #f3b76a;
-  --category-game: #7fd1a4;
+  --card-foreground: #1e1714;
+  --popover: #fff7f0;
+  --popover-foreground: #1e1714;
+  --primary: #ff5a6f;
+  --primary-foreground: #3a1016;
+  --secondary: #e7f1ff;
+  --secondary-foreground: #23304a;
+  --muted: #f4e8df;
+  --muted-foreground: #6a5e59;
+  --accent: #e9f9d8;
+  --accent-foreground: #1f2a16;
+  --destructive: #e34f62;
+  --border: rgba(30, 23, 20, 0.14);
+  --input: rgba(30, 23, 20, 0.18);
+  --input-background: #ffe9dd;
+  --ring: #ff5a6f;
+  --chart-1: #5aa9ff;
+  --chart-2: #9ee46b;
+  --chart-3: #ffb24a;
+  --chart-4: #ff5a6f;
+  --chart-5: #6cd4c6;
+  --sidebar: #fff0e6;
+  --sidebar-foreground: #1e1714;
+  --sidebar-primary: #ff5a6f;
+  --sidebar-primary-foreground: #3a1016;
+  --sidebar-accent: #e7f1ff;
+  --sidebar-accent-foreground: #23304a;
+  --sidebar-border: rgba(30, 23, 20, 0.12);
+  --sidebar-ring: #ff5a6f;
+  --category-movie: #5aa9ff;
+  --category-tv: #6cc6ff;
+  --category-anime: #ff7ab6;
+  --category-song: #ffb24a;
+  --category-game: #9ee46b;
 }
 
 .dark {
@@ -134,6 +147,15 @@
     background: var(--background-gradient);
     background-attachment: fixed;
   }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+  }
 }
 
 @layer utilities {
@@ -168,6 +190,36 @@
     animation: orbit-counter 120s linear infinite;
   }
 
+  .media-float-bg {
+    position: fixed;
+    inset: -12vh -10vw;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 1;
+    overflow: hidden;
+    filter: saturate(0.95) contrast(0.96);
+    mix-blend-mode: multiply;
+    transform: translate3d(0, var(--parallax-y, 0px), 0);
+  }
+
+  .media-bg-poster {
+    position: absolute;
+    top: var(--y);
+    left: var(--x);
+    width: var(--w);
+    height: var(--h);
+    opacity: var(--opacity);
+    border-radius: 24px;
+    object-fit: cover;
+    transform: translate3d(0, calc(var(--parallax-y, 0px) * var(--depth)), 0)
+      rotate(var(--rotate));
+    animation: poster-float var(--float-duration) ease-in-out infinite;
+    animation-delay: var(--float-delay);
+    filter: saturate(0.95) contrast(0.95);
+    box-shadow: 0 12px 30px rgba(30, 23, 20, 0.18);
+    will-change: transform;
+  }
+
   @keyframes orbit-rotate {
     from {
       transform: rotate(0deg);
@@ -185,11 +237,38 @@
       transform: rotate(-360deg);
     }
   }
+
+  @keyframes poster-float {
+    0% {
+      transform: translate3d(0, calc(var(--parallax-y, 0px) * var(--depth)), 0)
+        rotate(var(--rotate));
+    }
+    50% {
+      transform: translate3d(
+          -4%,
+          calc(var(--parallax-y, 0px) * var(--depth) - 3%),
+          0
+        )
+        rotate(calc(var(--rotate) + 1.5deg));
+    }
+    100% {
+      transform: translate3d(
+          4%,
+          calc(var(--parallax-y, 0px) * var(--depth) + 3%),
+          0
+        )
+        rotate(calc(var(--rotate) - 1.5deg));
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .orbit-rotate,
   .orbit-counter {
+    animation: none;
+  }
+
+  .media-bg-poster {
     animation: none;
   }
 }
