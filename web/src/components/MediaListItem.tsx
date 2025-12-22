@@ -42,6 +42,15 @@ import { StatusSelect } from '@/components/StatusSelect'
 export type MediaListItemViewMode = 'detailed' | 'grid' | 'compact'
 export type EntryDateLabel = 'Rated' | 'Added' | 'Logged'
 
+const statusToneMap: Record<EntryStatus, string> = {
+  Watching: '#6CC6FF',
+  Playing: '#9EE46B',
+  Listening: '#FFB24A',
+  Completed: '#FF5A6F',
+  Planning: '#5AA9FF',
+  Dropped: '#FF7AB6',
+}
+
 export interface MediaListItemProps {
   viewMode: MediaListItemViewMode
 
@@ -158,6 +167,15 @@ export function MediaListItem({
       ? note
       : 'No notes yet. Click to add.'
 
+  const statusTone = status ? statusToneMap[status] : null
+  const statusBadgeStyle = statusTone
+    ? {
+        backgroundColor: `${statusTone}1a`,
+        borderColor: `${statusTone}55`,
+        color: statusTone,
+      }
+    : undefined
+
   const handleSaveNote = async () => {
     if (!onSaveNote) return
     await onSaveNote(noteDraft.trim())
@@ -185,13 +203,17 @@ export function MediaListItem({
           className="text-left"
           aria-label="Edit status"
         >
-          <Badge variant="outline" className="capitalize">
+          <Badge
+            variant="outline"
+            className="capitalize"
+            style={statusBadgeStyle}
+          >
             {status}
           </Badge>
         </button>
       )
     ) : status ? (
-      <Badge variant="outline" className="capitalize">
+      <Badge variant="outline" className="capitalize" style={statusBadgeStyle}>
         {status}
       </Badge>
     ) : null

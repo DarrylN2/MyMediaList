@@ -136,7 +136,7 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
       <div className="mb-6 space-y-2 text-center">
         <h1 className="mx-auto max-w-3xl text-3xl font-bold tracking-tight md:text-4xl">
           Your personal list for{' '}
-          <span className="bg-gradient-to-r from-primary via-[var(--category-tv)] to-[var(--category-song)] bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
             medias
           </span>
         </h1>

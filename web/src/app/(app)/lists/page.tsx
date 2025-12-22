@@ -608,7 +608,13 @@ export default function ListsPage() {
     <div className="space-y-8">
       <header className="space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-center">
-          <div className="flex flex-1 items-center gap-3 rounded-3xl border border-white/70 bg-white/80 px-4 py-3 shadow-sm backdrop-blur">
+          <div
+            className="flex flex-1 items-center gap-3 rounded-3xl border border-white/70 bg-white/80 px-4 py-3 shadow-sm backdrop-blur"
+            style={{
+              backgroundImage:
+                'linear-gradient(120deg, rgba(255,90,111,0.14), rgba(90,169,255,0.12) 45%, rgba(255,255,255,0) 70%)',
+            }}
+          >
             <Search className="h-5 w-5 text-muted-foreground" />
             <Input
               value={query}
@@ -616,14 +622,14 @@ export default function ListsPage() {
               placeholder="Search your lists"
               className="h-auto border-0 bg-transparent px-0 text-base focus-visible:ring-0"
             />
-            <div className="flex items-center gap-2 rounded-full border border-dashed bg-white px-3 py-1 text-muted-foreground">
+            <div className="flex items-center gap-2 rounded-full border border-dashed border-primary/30 bg-white/80 px-3 py-1 text-primary">
               <ArrowUpDown className="h-3.5 w-3.5" />
               <select
                 value={listSort}
                 onChange={(event) =>
                   setListSort(event.target.value as ListSort)
                 }
-                className="h-8 bg-transparent text-sm focus:outline-none"
+                className="h-8 bg-transparent text-sm text-primary focus:outline-none"
                 aria-label="Sort lists"
               >
                 {LIST_SORT_OPTIONS.map((opt) => (
@@ -642,6 +648,10 @@ export default function ListsPage() {
                   <Button
                     className="h-12 rounded-3xl px-5 text-base shadow-lg"
                     disabled={!user?.email}
+                    style={{
+                      backgroundImage:
+                        'linear-gradient(90deg, #FF5A6F, #6CC6FF)',
+                    }}
                   >
                     <Plus className="h-4 w-4" />
                     New List
@@ -711,21 +721,32 @@ export default function ListsPage() {
 
         {!user?.email ? (
           <div className="flex flex-wrap gap-2">
-            {FILTER_OPTIONS.map((option) => (
-              <Button
-                key={option}
-                type="button"
-                variant={option === activeFilter ? 'default' : 'secondary'}
-                className={`rounded-full px-4 text-sm capitalize ${
-                  option === activeFilter
-                    ? 'shadow-md'
-                    : 'bg-white/70 text-slate-600 hover:bg-white'
-                }`}
-                onClick={() => setActiveFilter(option)}
-              >
-                {option === 'all' ? 'All lists' : option}
-              </Button>
-            ))}
+            {FILTER_OPTIONS.map((option) => {
+              const isActive = option === activeFilter
+              return (
+                <Button
+                  key={option}
+                  type="button"
+                  variant={isActive ? 'default' : 'secondary'}
+                  className={`rounded-full px-4 text-sm capitalize ${
+                    isActive
+                      ? 'text-white shadow-md'
+                      : 'bg-white/70 text-slate-600 hover:bg-white'
+                  }`}
+                  onClick={() => setActiveFilter(option)}
+                  style={
+                    isActive
+                      ? {
+                          backgroundImage:
+                            'linear-gradient(90deg, #FF5A6F, #6CC6FF)',
+                        }
+                      : undefined
+                  }
+                >
+                  {option === 'all' ? 'All lists' : option}
+                </Button>
+              )
+            })}
           </div>
         ) : null}
 
@@ -737,7 +758,12 @@ export default function ListsPage() {
 
       <section className="space-y-4">
         <div>
-          <h1 className="text-2xl font-semibold">Your lists</h1>
+          <h1 className="text-2xl font-semibold">
+            Your{' '}
+            <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
+              lists
+            </span>
+          </h1>
           <p className="text-sm text-muted-foreground">
             Browse, reorder, or share your collections at a glance.
           </p>
@@ -803,7 +829,7 @@ export default function ListsPage() {
                         <span className="text-xs uppercase tracking-wide text-muted-foreground">
                           Items
                         </span>
-                        <span className="text-3xl font-semibold leading-tight text-foreground">
+                        <span className="text-3xl font-semibold leading-tight text-primary">
                           {list.itemCount}
                         </span>
                         <span className="text-xs text-muted-foreground">
@@ -913,7 +939,9 @@ export default function ListsPage() {
       <section className="rounded-3xl border border-white/70 bg-white/95 p-6 shadow-md">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold">Rated items</h2>
+            <h2 className="text-xl font-semibold">
+              <span className="text-primary">Rated</span> items
+            </h2>
             <p className="text-sm text-muted-foreground">
               Everything you have rated so far, with quick filtering and
               sorting.

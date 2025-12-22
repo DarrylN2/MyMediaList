@@ -814,10 +814,15 @@ export default function MediaDetailPage({
               >
                 <div>
                   <h1 className="text-4xl font-bold tracking-tight drop-shadow-md sm:text-5xl">
-                    {media.title}
+                    <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
+                      {media.title}
+                    </span>
                   </h1>
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-foreground/75">
-                    <Badge variant="secondary" className="uppercase">
+                    <Badge
+                      variant="outline"
+                      className="uppercase border-primary/30 bg-primary/10 text-primary"
+                    >
                       {media.type}
                     </Badge>
                     {media.year ? (

@@ -993,12 +993,19 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="capitalize">
+              <Badge
+                variant="outline"
+                className="capitalize border-primary/30 bg-primary/10 text-primary"
+              >
                 Custom list
               </Badge>
               <Badge variant="outline">{processedItems.length} items</Badge>
             </div>
-            <h1 className="mt-2 text-3xl font-bold">{list.title}</h1>
+            <h1 className="mt-2 text-3xl font-bold">
+              <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
+                {list.title}
+              </span>
+            </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {list.description ?? '—'}
             </p>

@@ -795,12 +795,21 @@ function SearchPageClient() {
 
   return (
     <div className="space-y-8 pb-12">
-      <div className="rounded-xl border bg-white/80 p-6 shadow-sm backdrop-blur">
+      <div
+        className="rounded-xl border bg-white/80 p-6 shadow-sm backdrop-blur"
+        style={{
+          backgroundImage:
+            'linear-gradient(120deg, rgba(255,90,111,0.12), rgba(90,169,255,0.12) 45%, rgba(255,255,255,0) 75%)',
+        }}
+      >
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-3xl font-semibold tracking-tight">
-                Results for {queryLabel}
+                Results for{' '}
+                <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
+                  {queryLabel}
+                </span>
               </h1>
               <p className="text-sm text-muted-foreground">{summaryText}</p>
               {isLoading && (
@@ -821,7 +830,7 @@ function SearchPageClient() {
                   type="button"
                   variant="outline"
                   size="lg"
-                  className="h-11 rounded-full border-dashed px-6"
+                  className="h-11 rounded-full border-dashed border-primary/30 bg-primary/10 px-6 text-primary hover:bg-primary/15"
                   aria-label="Open filters"
                 >
                   <Filter className="h-4 w-4" />
@@ -859,27 +868,42 @@ function SearchPageClient() {
                 }}
                 placeholder="Search movies, TV, anime, tracks, albums…"
                 aria-label="Search media"
-                className="h-11 w-full rounded-full border border-slate-200 bg-white/70 pl-12 pr-4 text-base"
+                className="h-11 w-full rounded-full border border-primary/20 bg-white/80 pl-12 pr-4 text-base focus-visible:ring-primary/30"
               />
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {CATEGORY_FILTERS.map((filter) => (
-              <Button
-                key={filter.id}
-                type="button"
-                size="sm"
-                variant={activeFilter === filter.id ? 'default' : 'ghost'}
-                className="rounded-full px-4"
-                onClick={() => updateCategoryFilter(filter.id)}
-              >
-                {filter.label}
-                <span className="ml-2 text-xs text-muted-foreground">
-                  {filterCounts[filter.id]}
-                </span>
-              </Button>
-            ))}
+            {CATEGORY_FILTERS.map((filter) => {
+              const isActive = activeFilter === filter.id
+              return (
+                <Button
+                  key={filter.id}
+                  type="button"
+                  size="sm"
+                  variant={isActive ? 'default' : 'ghost'}
+                  className={`rounded-full px-4 ${
+                    isActive
+                      ? 'text-white shadow-sm'
+                      : 'border border-white/70 bg-white/70 text-slate-600 hover:bg-white'
+                  }`}
+                  onClick={() => updateCategoryFilter(filter.id)}
+                  style={
+                    isActive
+                      ? {
+                          backgroundImage:
+                            'linear-gradient(90deg, #FF5A6F, #6CC6FF)',
+                        }
+                      : undefined
+                  }
+                >
+                  {filter.label}
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    {filterCounts[filter.id]}
+                  </span>
+                </Button>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -1093,7 +1117,11 @@ function SearchCategorySection({
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-semibold">{category.title}</h2>
+          <h2 className="text-2xl font-semibold">
+            <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
+              {category.title}
+            </span>
+          </h2>
           {category.helper && (
             <p className="text-sm text-muted-foreground">{category.helper}</p>
           )}

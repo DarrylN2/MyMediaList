@@ -529,11 +529,18 @@ export function ListDetailClient({ list }: { list: MediaList }) {
             />
           </div>
           <div className="flex-1 space-y-4">
-            <Badge variant="secondary" className="capitalize">
+            <Badge
+              variant="outline"
+              className="capitalize border-primary/30 bg-primary/10 text-primary"
+            >
               {list.type}
             </Badge>
             <div>
-              <h1 className="text-3xl font-bold">{list.title}</h1>
+              <h1 className="text-3xl font-bold">
+                <span className="bg-gradient-to-r from-[#c43b4b] via-[#2d6fc6] to-[#c27f2d] bg-clip-text text-transparent">
+                  {list.title}
+                </span>
+              </h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 {list.description}
               </p>
@@ -552,7 +559,9 @@ export function ListDetailClient({ list }: { list: MediaList }) {
                 <p className="text-xs uppercase text-muted-foreground">
                   {list.stat.label}
                 </p>
-                <p className="text-2xl font-semibold">{list.stat.value}</p>
+                <p className="text-2xl font-semibold text-primary">
+                  {list.stat.value}
+                </p>
                 {list.stat.helper && (
                   <p className="text-xs text-muted-foreground">
                     {list.stat.helper}
@@ -561,7 +570,9 @@ export function ListDetailClient({ list }: { list: MediaList }) {
               </div>
               <div>
                 <p className="text-xs uppercase text-muted-foreground">Items</p>
-                <p className="text-2xl font-semibold">{list.itemCount}</p>
+                <p className="text-2xl font-semibold text-primary">
+                  {list.itemCount}
+                </p>
                 <p className="text-xs text-muted-foreground">
                   Updated {list.updatedAt}
                 </p>
@@ -570,7 +581,7 @@ export function ListDetailClient({ list }: { list: MediaList }) {
                 <p className="text-xs uppercase text-muted-foreground">
                   Avg score
                 </p>
-                <p className="text-2xl font-semibold">
+                <p className="text-2xl font-semibold text-primary">
                   {list.averageRating.toFixed(1)}
                 </p>
                 <p className="text-xs text-muted-foreground">Custom list</p>
