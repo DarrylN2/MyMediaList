@@ -799,9 +799,6 @@ function SearchPageClient() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">
-                Stitch Search Results
-              </p>
               <h1 className="text-3xl font-semibold tracking-tight">
                 Results for {queryLabel}
               </h1>
@@ -815,10 +812,6 @@ function SearchPageClient() {
                 <p className="text-xs text-rose-600">{searchError}</p>
               )}
             </div>
-            <Badge className="rounded-full border border-indigo-100 bg-indigo-50 text-xs font-medium text-indigo-700">
-              <Sparkles className="h-4 w-4" />
-              Smart suggestions on
-            </Badge>
           </div>
 
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
