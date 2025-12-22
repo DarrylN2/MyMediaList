@@ -37,8 +37,10 @@ const getMediaKey = (item: DashboardEntry) =>
 export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
   const [isPlaying, setIsPlaying] = useState(true)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [lastHoveredId, setLastHoveredId] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const [shuffledIds, setShuffledIds] = useState<string[] | null>(null)
+  const [orbitEpoch, setOrbitEpoch] = useState(0)
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
@@ -71,11 +73,10 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
 
   const activeItem = useMemo(() => {
     if (!sunItem) return null
-    if (!hoveredId) return sunItem
-    return (
-      planetOrder.find((planet) => getMediaKey(planet) === hoveredId) ?? sunItem
-    )
-  }, [hoveredId, planetOrder, sunItem])
+    const id = hoveredId ?? lastHoveredId
+    if (!id) return sunItem
+    return planetOrder.find((planet) => getMediaKey(planet) === id) ?? sunItem
+  }, [hoveredId, lastHoveredId, planetOrder, sunItem])
 
   const orbitRadius = isMobile ? 140 : 220
   const sunSize = isMobile ? 180 : 260
@@ -113,6 +114,7 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
     const ids = planets.map((planet) => getMediaKey(planet))
     const next = [...ids].sort(() => Math.random() - 0.5)
     setShuffledIds(next)
+    setOrbitEpoch((value) => value + 1)
   }
 
   if (!sunItem) {
@@ -165,6 +167,7 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
             />
 
             <div
+              key={orbitEpoch}
               className={`absolute ${isPlaying ? 'orbit-rotate' : ''}`}
               style={{
                 width: `${orbitRadius * 2}px`,
@@ -190,9 +193,15 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
                     <div className={isPlaying ? 'orbit-counter' : ''}>
                       <button
                         type="button"
-                        onMouseEnter={() => setHoveredId(key)}
+                        onMouseEnter={() => {
+                          setHoveredId(key)
+                          setLastHoveredId(key)
+                        }}
                         onMouseLeave={() => setHoveredId(null)}
-                        onFocus={() => setHoveredId(key)}
+                        onFocus={() => {
+                          setHoveredId(key)
+                          setLastHoveredId(key)
+                        }}
                         onBlur={() => setHoveredId(null)}
                         className="group relative block overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                         style={{
