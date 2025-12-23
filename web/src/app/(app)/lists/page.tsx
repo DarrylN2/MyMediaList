@@ -13,7 +13,6 @@ import {
   Table as TableIcon,
 } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -36,6 +35,7 @@ import {
   MediaListItem,
   type MediaListItemViewMode,
 } from '@/components/MediaListItem'
+import { ListPosterCollage } from '@/components/ListPosterCollage'
 import { useAuth } from '@/context/AuthContext'
 import { mockLists } from '@/data/mockLists'
 import type { EntryStatus, MediaType } from '@/types'
@@ -121,6 +121,7 @@ export default function ListsPage() {
       description: string | null
       updatedAt: string
       itemCount: number
+      posterUrls: string[]
     }>
   >([])
   const [userListsLoading, setUserListsLoading] = useState(false)
@@ -262,15 +263,35 @@ export default function ListsPage() {
         }
 
         const lists = payload.lists ?? []
-        const counts = await Promise.all(
+        const listSummaries = await Promise.all(
           lists.map(async (list) => {
             const countRes = await fetch(
               `/api/lists/${list.id}?userId=${encodeURIComponent(user.email)}`,
               { signal: controller.signal },
             )
-            if (!countRes.ok) return 0
-            const detail = (await countRes.json()) as { items?: unknown[] }
-            return Array.isArray(detail.items) ? detail.items.length : 0
+            if (!countRes.ok)
+              return { itemCount: 0, posterUrls: [] as string[] }
+
+            const detail = (await countRes.json()) as {
+              items?: Array<{
+                media_items:
+                  | { poster_url: string | null }
+                  | Array<{ poster_url: string | null }>
+              }>
+            }
+
+            const items = Array.isArray(detail.items) ? detail.items : []
+            const posterUrls = items
+              .map((row) => {
+                const media = Array.isArray(row.media_items)
+                  ? row.media_items[0]
+                  : row.media_items
+                return media?.poster_url ?? null
+              })
+              .filter(Boolean)
+              .slice(0, 4) as string[]
+
+            return { itemCount: items.length, posterUrls }
           }),
         )
 
@@ -281,7 +302,8 @@ export default function ListsPage() {
               title: list.title,
               description: list.description,
               updatedAt: list.updated_at,
-              itemCount: counts[idx] ?? 0,
+              itemCount: listSummaries[idx]?.itemCount ?? 0,
+              posterUrls: listSummaries[idx]?.posterUrls ?? [],
             })),
           )
         }
@@ -789,9 +811,19 @@ export default function ListsPage() {
                 >
                   <article className="hover-lift fade-up flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/95 p-4 shadow-md transition group-hover:shadow-lg sm:flex-row sm:items-center sm:gap-6">
                     <div className="flex flex-1 items-center gap-4">
-                      <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 text-xl font-semibold text-indigo-700">
-                        {list.title.slice(0, 1).toUpperCase()}
-                      </div>
+                      {list.posterUrls.length > 0 ? (
+                        <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-2xl bg-muted">
+                          <ListPosterCollage
+                            posterUrls={list.posterUrls}
+                            className="h-full w-full"
+                            sizes="96px"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 text-xl font-semibold text-indigo-700">
+                          {list.title.slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
 
                       <div className="space-y-2">
                         <div>
