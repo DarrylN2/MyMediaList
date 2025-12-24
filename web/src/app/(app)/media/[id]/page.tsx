@@ -42,7 +42,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/context/AuthContext'
 import { toast } from 'sonner'
-import type { EntryStatus, Media } from '@/types'
+import type { EntryStatus, Media, MediaProvider } from '@/types'
+import { getDemoEntryByMedia, updateDemoEntry } from '@/data/demoStore'
 
 interface ParsedMediaId {
   provider: string
@@ -70,7 +71,7 @@ export default function MediaDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
-  const { user } = useAuth()
+  const { user, openAuthDialog, beginAppLoading, endAppLoading } = useAuth()
   const userId = user?.email ?? null
 
   const [media, setMedia] = useState<Media | null>(null)
@@ -156,19 +157,35 @@ export default function MediaDetailPage({
     loadMedia()
 
     return () => controller.abort()
-  }, [id])
+  }, [id, userId])
 
   useEffect(() => {
-    if (!userId) {
-      setStatus('Planning')
-      setRating(0)
-      setNotes('')
-      setEpisodeProgress(null)
-      return
-    }
-
     const parsed = parseMediaRouteId(id)
     if (!parsed) {
+      return
+    }
+    if (!userId) {
+      const demoEntry = getDemoEntryByMedia({
+        provider: parsed.provider as MediaProvider,
+        providerId: parsed.sourceId,
+        type: parsed.type,
+      })
+      if (demoEntry) {
+        setStatus(demoEntry.status)
+        setRating(demoEntry.rating ?? 0)
+        setNotes(demoEntry.note ?? '')
+        setEpisodeProgress(
+          typeof demoEntry.episodeProgress === 'number' &&
+            Number.isFinite(demoEntry.episodeProgress)
+            ? demoEntry.episodeProgress
+            : null,
+        )
+      } else {
+        setStatus('Planning')
+        setRating(0)
+        setNotes('')
+        setEpisodeProgress(null)
+      }
       return
     }
 
@@ -176,6 +193,7 @@ export default function MediaDetailPage({
 
     const loadEntry = async () => {
       try {
+        beginAppLoading()
         const response = await fetch(
           `/api/list?provider=${parsed.provider}&sourceId=${parsed.sourceId}&userId=${encodeURIComponent(
             userId,
@@ -221,13 +239,15 @@ export default function MediaDetailPage({
         if ((fetchError as Error).name !== 'AbortError') {
           console.error(fetchError)
         }
+      } finally {
+        endAppLoading()
       }
     }
 
     loadEntry()
 
     return () => controller.abort()
-  }, [id, userId])
+  }, [beginAppLoading, endAppLoading, id, userId])
 
   const isSpotifyAlbum =
     media?.provider === 'spotify' && media?.type === 'album'
@@ -299,7 +319,7 @@ export default function MediaDetailPage({
 
   const openAddToList = async (overrideMedia?: Media) => {
     if (!userId) {
-      toast('Log in to add items to your list.')
+      openAuthDialog('login')
       return
     }
 
@@ -368,7 +388,7 @@ export default function MediaDetailPage({
 
   const openTrackRateDialog = (track: SpotifyAlbumTrack) => {
     if (!userId) {
-      toast('Log in to rate tracks.')
+      openAuthDialog('login')
       return
     }
     const trackMedia = buildTrackMedia(track)
@@ -505,11 +525,6 @@ export default function MediaDetailPage({
   }
 
   const handleSaveEntry = async () => {
-    if (!userId) {
-      toast('Log in to save entries.')
-      return
-    }
-
     if (!media) {
       toast('Media details are still loading.')
       return
@@ -518,6 +533,40 @@ export default function MediaDetailPage({
     const parsed = parseMediaRouteId(id)
     if (!parsed) {
       toast('Unsupported media identifier.')
+      return
+    }
+
+    const entryPatch = {
+      status,
+      rating,
+      note: notes,
+      episodeProgress:
+        typeof episodeProgress === 'number' && Number.isFinite(episodeProgress)
+          ? episodeProgress
+          : null,
+    }
+
+    if (!userId) {
+      const nextState = updateDemoEntry(
+        {
+          provider: media.provider,
+          providerId: media.providerId,
+          type: media.type,
+          title: media.title,
+          posterUrl: media.posterUrl ?? null,
+          description: cleanDescription ?? null,
+          year: media.year ?? null,
+          durationMinutes: media.durationMinutes ?? null,
+          episodeCount: media.episodeCount ?? null,
+          genres: media.genres ?? null,
+        },
+        entryPatch,
+      )
+      if (!nextState) {
+        toast.error('Unable to save demo entry.')
+        return
+      }
+      toast.success('Entry saved to demo list.')
       return
     }
 
@@ -540,16 +589,7 @@ export default function MediaDetailPage({
             episodeCount: media.episodeCount,
             genres: media.genres,
           },
-          entry: {
-            status,
-            rating,
-            note: notes,
-            episodeProgress:
-              typeof episodeProgress === 'number' &&
-              Number.isFinite(episodeProgress)
-                ? episodeProgress
-                : null,
-          },
+          entry: entryPatch,
         }),
       })
 
@@ -761,7 +801,7 @@ export default function MediaDetailPage({
       <div className="relative">
         {/* Backdrop that extends beyond the hero */}
         {media.backdropUrl ? (
-          <div className="pointer-events-none absolute left-1/2 top-0 -ml-[50vw] h-[72vh] w-screen">
+          <div className="pointer-events-none absolute left-1/2 -top-16 -ml-[50vw] h-[calc(72vh+4rem)] w-screen">
             <div
               className="absolute inset-0"
               style={{
@@ -1659,14 +1699,14 @@ export default function MediaDetailPage({
                     disabled={isSaving}
                   >
                     {isSaving
-                      ? 'Saving…'
+                      ? 'Saving...'
                       : user
                         ? 'Save Changes'
-                        : 'Log in to save'}
+                        : 'Save to demo'}
                   </Button>
                   {!user ? (
                     <p className="text-xs text-muted-foreground">
-                      Sign in to keep track of your progress.
+                      Demo changes are saved locally. Sign in to sync them.
                     </p>
                   ) : null}
                 </CardContent>

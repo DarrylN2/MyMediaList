@@ -130,6 +130,7 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
   }
 
   const sunColor = categoryColorMap[sunItem.media.type] ?? 'var(--primary)'
+  const sunKey = getMediaKey(sunItem)
 
   return (
     <section className="relative py-4 md:py-6">
@@ -246,7 +247,22 @@ export function SolarSystemHero({ items }: { items: DashboardEntry[] }) {
                   background: `radial-gradient(circle, ${sunColor}40 0%, ${sunColor}15 60%, transparent 100%)`,
                 }}
               />
-              <div className="relative w-full overflow-hidden rounded-3xl border border-border/60 bg-card shadow-xl">
+              <div
+                className="relative w-full overflow-hidden rounded-3xl border border-border/60 bg-card shadow-xl"
+                onMouseEnter={() => {
+                  setHoveredId(sunKey)
+                  setLastHoveredId(sunKey)
+                }}
+                onMouseLeave={() => setHoveredId(null)}
+                onFocus={() => {
+                  setHoveredId(sunKey)
+                  setLastHoveredId(sunKey)
+                }}
+                onBlur={() => setHoveredId(null)}
+                tabIndex={0}
+                role="button"
+                aria-label={`View ${sunItem.media.title}`}
+              >
                 <div
                   className="relative"
                   style={{ height: isMobile ? '260px' : '360px' }}

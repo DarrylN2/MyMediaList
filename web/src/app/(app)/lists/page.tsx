@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
@@ -37,11 +36,12 @@ import {
 } from '@/components/MediaListItem'
 import { ListPosterCollage } from '@/components/ListPosterCollage'
 import { useAuth } from '@/context/AuthContext'
-import { mockLists } from '@/data/mockLists'
-import type { EntryStatus, MediaType } from '@/types'
-
-const FILTER_OPTIONS = ['all', 'movies', 'anime', 'games'] as const
-type FilterOption = (typeof FILTER_OPTIONS)[number]
+import {
+  buildDemoRatedItems,
+  ensureDemoState,
+  updateDemoEntry,
+} from '@/data/demoStore'
+import type { EntryStatus, MediaProvider, MediaType } from '@/types'
 
 const LIST_SORT_OPTIONS = [
   { value: 'recent', label: 'Most recent' },
@@ -81,15 +81,6 @@ const RATED_SORT_OPTIONS = [
 ] as const
 type RatedSort = (typeof RATED_SORT_OPTIONS)[number]['value']
 
-function parseMockUpdatedAtDaysAgo(value: string) {
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'today') return 0
-  if (normalized === 'yesterday') return 1
-  const match = normalized.match(/(\d+)\s+day/)
-  if (match?.[1]) return Number(match[1])
-  return Number.POSITIVE_INFINITY
-}
-
 function buildMediaRouteId(media: {
   provider: string
   providerId: string
@@ -110,10 +101,9 @@ function buildMediaRouteId(media: {
 
 export default function ListsPage() {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, openAuthDialog, beginAppLoading, endAppLoading } = useAuth()
   const [query, setQuery] = useState('')
   const [listSort, setListSort] = useState<ListSort>('recent')
-  const [activeFilter, setActiveFilter] = useState<FilterOption>('all')
   const [userLists, setUserLists] = useState<
     Array<{
       id: string
@@ -135,6 +125,19 @@ export default function ListsPage() {
   const [ratedItems, setRatedItems] = useState<RatedItem[]>([])
   const [ratedLoading, setRatedLoading] = useState(false)
   const [ratedError, setRatedError] = useState<string | null>(null)
+  const [demoLists, setDemoLists] = useState<
+    Array<{
+      id: string
+      title: string
+      description: string
+      updatedAt: string
+      itemCount: number
+      posterUrls: string[]
+    }>
+  >([])
+  const [demoRatedItems, setDemoRatedItems] = useState<RatedItem[]>([])
+  const [demoLoading, setDemoLoading] = useState(false)
+  const [demoError, setDemoError] = useState<string | null>(null)
 
   const [newListOpen, setNewListOpen] = useState(false)
   const [newListTitle, setNewListTitle] = useState('')
@@ -150,6 +153,27 @@ export default function ListsPage() {
       day: 'numeric',
     })
   }
+
+  const toDemoListSummaries = (
+    lists: Array<{
+      id: string
+      title: string
+      description: string
+      updatedAt: string
+      items: Array<{ media: { posterUrl?: string | null } }>
+    }>,
+  ) =>
+    lists.map((list) => ({
+      id: list.id,
+      title: list.title,
+      description: list.description,
+      updatedAt: list.updatedAt,
+      itemCount: list.items.length,
+      posterUrls: list.items
+        .map((item) => item.media.posterUrl ?? null)
+        .filter(Boolean)
+        .slice(0, 4) as string[],
+    }))
 
   const filteredUserLists = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -182,32 +206,23 @@ export default function ListsPage() {
     return sorted
   }, [filteredUserLists, listSort])
 
-  const filteredMockLists = useMemo(() => {
+  const filteredDemoLists = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
-
-    return mockLists.filter((list) => {
-      const matchesCategory =
-        activeFilter === 'all' || list.type === activeFilter
-      if (!matchesCategory) return false
+    return demoLists.filter((list) => {
       if (!normalizedQuery) return true
-
       return (
         list.title.toLowerCase().includes(normalizedQuery) ||
-        list.description.toLowerCase().includes(normalizedQuery) ||
-        list.previewItems.some((item) =>
-          item.toLowerCase().includes(normalizedQuery),
-        )
+        list.description.toLowerCase().includes(normalizedQuery)
       )
     })
-  }, [activeFilter, query])
+  }, [demoLists, query])
 
-  const visibleMockLists = useMemo(() => {
-    const sorted = [...filteredMockLists].sort((a, b) => {
+  const visibleDemoLists = useMemo(() => {
+    const sorted = [...filteredDemoLists].sort((a, b) => {
       switch (listSort) {
         case 'recent':
           return (
-            parseMockUpdatedAtDaysAgo(a.updatedAt) -
-            parseMockUpdatedAtDaysAgo(b.updatedAt)
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
           )
         case 'title':
           return a.title.localeCompare(b.title, undefined, {
@@ -222,14 +237,14 @@ export default function ListsPage() {
       }
     })
     return sorted
-  }, [filteredMockLists, listSort])
+  }, [filteredDemoLists, listSort])
 
   const totalItems = useMemo(() => {
     if (user?.email) {
       return userLists.reduce((sum, list) => sum + list.itemCount, 0)
     }
-    return mockLists.reduce((sum, list) => sum + list.itemCount, 0)
-  }, [user?.email, userLists])
+    return demoLists.reduce((sum, list) => sum + list.itemCount, 0)
+  }, [demoLists, user?.email, userLists])
 
   useEffect(() => {
     if (!user?.email) {
@@ -242,6 +257,7 @@ export default function ListsPage() {
     const controller = new AbortController()
     setUserListsLoading(true)
     setUserListsError(null)
+    beginAppLoading()
 
     const load = async () => {
       try {
@@ -314,12 +330,13 @@ export default function ListsPage() {
         )
       } finally {
         if (!controller.signal.aborted) setUserListsLoading(false)
+        endAppLoading()
       }
     }
 
     load()
     return () => controller.abort()
-  }, [user?.email])
+  }, [beginAppLoading, endAppLoading, user?.email])
 
   useEffect(() => {
     if (!user?.email) {
@@ -332,6 +349,7 @@ export default function ListsPage() {
     const controller = new AbortController()
     setRatedLoading(true)
     setRatedError(null)
+    beginAppLoading()
 
     const load = async () => {
       try {
@@ -404,11 +422,46 @@ export default function ListsPage() {
         if (!controller.signal.aborted) {
           setRatedLoading(false)
         }
+        endAppLoading()
       }
     }
 
     load()
     return () => controller.abort()
+  }, [beginAppLoading, endAppLoading, user?.email])
+
+  useEffect(() => {
+    if (user?.email) {
+      setDemoLists([])
+      setDemoRatedItems([])
+      setDemoError(null)
+      setDemoLoading(false)
+      return
+    }
+
+    let active = true
+    setDemoLoading(true)
+    setDemoError(null)
+
+    ensureDemoState()
+      .then((state) => {
+        if (!active) return
+        setDemoLists(toDemoListSummaries(state.lists))
+        setDemoRatedItems(buildDemoRatedItems(state.entries))
+      })
+      .catch((err) => {
+        if (!active) return
+        setDemoError(
+          err instanceof Error ? err.message : 'Failed to load demo lists.',
+        )
+      })
+      .finally(() => {
+        if (active) setDemoLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
   }, [user?.email])
 
   useEffect(() => {
@@ -430,10 +483,12 @@ export default function ListsPage() {
     }
   }, [ratedViewMode])
 
+  const ratedItemsSource = user?.email ? ratedItems : demoRatedItems
+
   const visibleRatedItems = useMemo(() => {
     const q = ratedQuery.trim().toLowerCase()
 
-    const filtered = ratedItems.filter((item) => {
+    const filtered = ratedItemsSource.filter((item) => {
       if (ratedType !== 'all' && item.type !== ratedType) return false
       if (ratedStatus !== 'all' && item.status !== ratedStatus) return false
       if (!q) return true
@@ -461,7 +516,37 @@ export default function ListsPage() {
     })
 
     return sorted
-  }, [ratedItems, ratedQuery, ratedSort, ratedStatus, ratedType])
+  }, [ratedItemsSource, ratedQuery, ratedSort, ratedStatus, ratedType])
+
+  const applyDemoPatch = (
+    item: RatedItem,
+    entry: Partial<{
+      status: EntryStatus
+      rating: number | null
+      note: string | null
+      episodeProgress: number | null
+    }>,
+  ) => {
+    const nextState = updateDemoEntry(
+      {
+        provider: item.provider as MediaProvider,
+        providerId: item.providerId,
+        type: item.type,
+        title: item.title,
+        posterUrl: item.coverUrl,
+        description: item.description,
+        year: item.year ?? undefined,
+        durationMinutes: item.durationMinutes ?? undefined,
+        episodeCount: item.episodeCount ?? undefined,
+        genres: item.genres ?? undefined,
+      },
+      entry,
+    )
+    if (nextState) {
+      setDemoLists(toDemoListSummaries(nextState.lists))
+      setDemoRatedItems(buildDemoRatedItems(nextState.entries))
+    }
+  }
 
   const persistRatedPatch = async (
     item: RatedItem,
@@ -472,7 +557,10 @@ export default function ListsPage() {
       episodeProgress: number | null
     }>,
   ) => {
-    if (!user?.email) return
+    if (!user?.email) {
+      applyDemoPatch(item, entry)
+      return
+    }
 
     const res = await fetch('/api/list', {
       method: 'PATCH',
@@ -534,6 +622,14 @@ export default function ListsPage() {
     const shouldPersist = updateProgress || nextStatus !== item.status
     if (!shouldPersist) return
 
+    if (!user?.email) {
+      applyDemoPatch(item, {
+        status: nextStatus,
+        ...(updateProgress ? { episodeProgress: nextProgress ?? null } : {}),
+      })
+      return
+    }
+
     const prev = ratedItems
     setRatedItems((items) =>
       items.map((x) =>
@@ -560,7 +656,11 @@ export default function ListsPage() {
   }
 
   const createList = async () => {
-    if (!user?.email || newListSaving) return
+    if (!user?.email) {
+      openAuthDialog('login')
+      return
+    }
+    if (newListSaving) return
 
     const title = newListTitle.trim()
     const description = newListDescription.trim()
@@ -663,118 +763,95 @@ export default function ListsPage() {
             </div>
           </div>
 
-          <Dialog open={newListOpen} onOpenChange={setNewListOpen}>
+          {user?.email ? (
+            <Dialog open={newListOpen} onOpenChange={setNewListOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  className="h-12 rounded-3xl px-5 text-base shadow-lg"
+                  style={{
+                    backgroundImage: 'linear-gradient(90deg, #FF5A6F, #6CC6FF)',
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  New List
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Create a new list</DialogTitle>
+                  <DialogDescription>
+                    Give it a name and (optionally) a description.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <form
+                  className="space-y-3"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void createList()
+                  }}
+                >
+                  <div className="space-y-2">
+                    <Input
+                      value={newListTitle}
+                      onChange={(event) => setNewListTitle(event.target.value)}
+                      placeholder="List title"
+                      aria-label="List title"
+                      autoFocus
+                      required
+                    />
+                    <Textarea
+                      value={newListDescription}
+                      onChange={(event) =>
+                        setNewListDescription(event.target.value)
+                      }
+                      placeholder="Description (optional)"
+                      aria-label="List description"
+                      rows={3}
+                    />
+                    {newListError ? (
+                      <p className="text-sm text-rose-700">{newListError}</p>
+                    ) : null}
+                  </div>
+
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setNewListOpen(false)}
+                      disabled={newListSaving}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={newListSaving}>
+                      {newListSaving ? 'Creating...' : 'Create list'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          ) : (
             <Tooltip>
               <TooltipTrigger asChild>
-                <DialogTrigger asChild>
-                  <Button
-                    className="h-12 rounded-3xl px-5 text-base shadow-lg"
-                    disabled={!user?.email}
-                    style={{
-                      backgroundImage:
-                        'linear-gradient(90deg, #FF5A6F, #6CC6FF)',
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                    New List
-                  </Button>
-                </DialogTrigger>
-              </TooltipTrigger>
-              {!user?.email ? (
-                <TooltipContent>Log in to create lists.</TooltipContent>
-              ) : null}
-            </Tooltip>
-
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Create a new list</DialogTitle>
-                <DialogDescription>
-                  Give it a name and (optionally) a description.
-                </DialogDescription>
-              </DialogHeader>
-
-              <form
-                className="space-y-3"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void createList()
-                }}
-              >
-                <div className="space-y-2">
-                  <Input
-                    value={newListTitle}
-                    onChange={(event) => setNewListTitle(event.target.value)}
-                    placeholder="List title"
-                    aria-label="List title"
-                    autoFocus
-                    required
-                  />
-                  <Textarea
-                    value={newListDescription}
-                    onChange={(event) =>
-                      setNewListDescription(event.target.value)
-                    }
-                    placeholder="Description (optional)"
-                    aria-label="List description"
-                    rows={3}
-                  />
-                  {newListError ? (
-                    <p className="text-sm text-rose-700">{newListError}</p>
-                  ) : null}
-                </div>
-
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setNewListOpen(false)}
-                    disabled={newListSaving}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={newListSaving}>
-                    {newListSaving ? 'Creating…' : 'Create list'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {!user?.email ? (
-          <div className="flex flex-wrap gap-2">
-            {FILTER_OPTIONS.map((option) => {
-              const isActive = option === activeFilter
-              return (
                 <Button
-                  key={option}
-                  type="button"
-                  variant={isActive ? 'default' : 'secondary'}
-                  className={`rounded-full px-4 text-sm capitalize ${
-                    isActive
-                      ? 'text-white shadow-md'
-                      : 'bg-white/70 text-slate-600 hover:bg-white'
-                  }`}
-                  onClick={() => setActiveFilter(option)}
-                  style={
-                    isActive
-                      ? {
-                          backgroundImage:
-                            'linear-gradient(90deg, #FF5A6F, #6CC6FF)',
-                        }
-                      : undefined
-                  }
+                  className="h-12 rounded-3xl px-5 text-base shadow-lg"
+                  onClick={() => openAuthDialog('login')}
+                  style={{
+                    backgroundImage: 'linear-gradient(90deg, #FF5A6F, #6CC6FF)',
+                  }}
                 >
-                  {option === 'all' ? 'All lists' : option}
+                  <Plus className="h-4 w-4" />
+                  New List
                 </Button>
-              )
-            })}
-          </div>
-        ) : null}
+              </TooltipTrigger>
+              <TooltipContent>Log In / Sign up to create lists.</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
 
         <p className="text-sm text-muted-foreground">
           Tracking {totalItems} items across{' '}
-          {user?.email ? userLists.length : mockLists.length} lists.
+          {user?.email ? userLists.length : demoLists.length} lists.
         </p>
       </header>
 
@@ -866,30 +943,41 @@ export default function ListsPage() {
               ))}
             </div>
           )
-        ) : visibleMockLists.length === 0 ? (
+        ) : demoLoading ? (
+          <div className="rounded-3xl border border-dashed border-muted-foreground/30 bg-white/80 p-10 text-center text-muted-foreground">
+            Loading demo lists...
+          </div>
+        ) : demoError ? (
+          <div className="rounded-3xl border border-rose-100 bg-rose-50/80 p-10 text-center text-rose-700">
+            {demoError}
+          </div>
+        ) : visibleDemoLists.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-muted-foreground/30 bg-white/80 p-10 text-center text-muted-foreground">
             No lists match your filters. Try a different search or category.
           </div>
         ) : (
           <div className="space-y-4">
-            {visibleMockLists.map((list) => (
+            {visibleDemoLists.map((list) => (
               <Link
                 key={list.id}
                 href={`/lists/${list.id}`}
                 className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
               >
-                <article className="flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/95 p-4 shadow-md transition group-hover:-translate-y-0.5 group-hover:shadow-lg sm:flex-row sm:items-center sm:gap-6">
+                <article className="hover-lift fade-up flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/95 p-4 shadow-md transition group-hover:shadow-lg sm:flex-row sm:items-center sm:gap-6">
                   <div className="flex flex-1 items-center gap-4">
-                    <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-2xl bg-muted">
-                      <Image
-                        src={list.coverUrl}
-                        alt={`${list.title} cover art`}
-                        fill
-                        sizes="96px"
-                        className="object-cover"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-br from-black/25 via-transparent to-black/0" />
-                    </div>
+                    {list.posterUrls.length > 0 ? (
+                      <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-2xl bg-muted">
+                        <ListPosterCollage
+                          posterUrls={list.posterUrls}
+                          className="h-full w-full"
+                          sizes="96px"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 text-xl font-semibold text-indigo-700">
+                        {list.title.slice(0, 1).toUpperCase()}
+                      </div>
+                    )}
 
                     <div className="space-y-2">
                       <div>
@@ -901,11 +989,8 @@ export default function ListsPage() {
                         </p>
                       </div>
 
-                      <p className="text-sm text-muted-foreground">
-                        {list.previewItems.join(', ')}...
-                      </p>
                       <p className="text-xs text-muted-foreground">
-                        Updated {list.updatedAt}
+                        Updated {formatShortDate(list.updatedAt)}
                       </p>
                     </div>
                   </div>
@@ -918,23 +1003,9 @@ export default function ListsPage() {
                   <div className="flex w-full items-center justify-between gap-6 sm:w-auto sm:flex-col sm:items-end sm:text-right">
                     <div className="flex flex-col text-left sm:items-end sm:text-right">
                       <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                        {list.stat.label}
-                      </span>
-                      <span className="text-3xl font-semibold leading-tight text-foreground">
-                        {list.stat.value}
-                      </span>
-                      {list.stat.helper ? (
-                        <span className="text-xs text-muted-foreground">
-                          {list.stat.helper}
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div className="flex flex-col text-left sm:items-end sm:text-right">
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
                         Items
                       </span>
-                      <span className="text-3xl font-semibold leading-tight text-foreground">
+                      <span className="text-3xl font-semibold leading-tight text-primary">
                         {list.itemCount}
                       </span>
                       <span className="text-xs text-muted-foreground">
@@ -1052,16 +1123,18 @@ export default function ListsPage() {
         </div>
 
         <div className="mt-6">
-          {!user ? (
-            <div className="py-6 text-sm text-muted-foreground">
-              Log in to see your rated items.
-            </div>
-          ) : ratedLoading ? (
+          {user?.email && ratedLoading ? (
             <div className="py-6 text-sm text-muted-foreground">
               Loading rated items…
             </div>
-          ) : ratedError ? (
+          ) : user?.email && ratedError ? (
             <div className="py-6 text-sm text-rose-700">{ratedError}</div>
+          ) : !user?.email && demoLoading ? (
+            <div className="py-6 text-sm text-muted-foreground">
+              Loading demo ratings...
+            </div>
+          ) : !user?.email && demoError ? (
+            <div className="py-6 text-sm text-rose-700">{demoError}</div>
           ) : visibleRatedItems.length === 0 ? (
             <div className="py-6 text-sm text-muted-foreground">
               No rated items yet.
@@ -1110,6 +1183,10 @@ export default function ListsPage() {
                       entryDateLabel="Rated"
                       entryDateIso={item.firstRatedAt ?? item.updatedAt}
                       onChangeStatus={async (next) => {
+                        if (!user?.email) {
+                          await persistRatedPatch(item, { status: next })
+                          return
+                        }
                         const prev = ratedItems
                         setRatedItems((items) =>
                           items.map((x) =>
@@ -1129,6 +1206,10 @@ export default function ListsPage() {
                         handleEpisodeProgressUpdate(item, next)
                       }
                       onChangeRating={async (next) => {
+                        if (!user?.email) {
+                          await persistRatedPatch(item, { rating: next })
+                          return
+                        }
                         const prev = ratedItems
                         setRatedItems((items) =>
                           items.map((x) =>
@@ -1145,6 +1226,10 @@ export default function ListsPage() {
                         }
                       }}
                       onSaveNote={async (next) => {
+                        if (!user?.email) {
+                          await persistRatedPatch(item, { note: next })
+                          return
+                        }
                         const prev = ratedItems
                         setRatedItems((items) =>
                           items.map((x) =>
@@ -1197,6 +1282,10 @@ export default function ListsPage() {
                     entryDateLabel="Rated"
                     entryDateIso={item.firstRatedAt ?? item.updatedAt}
                     onChangeStatus={async (next) => {
+                      if (!user?.email) {
+                        await persistRatedPatch(item, { status: next })
+                        return
+                      }
                       const prev = ratedItems
                       setRatedItems((items) =>
                         items.map((x) =>
@@ -1216,6 +1305,10 @@ export default function ListsPage() {
                       handleEpisodeProgressUpdate(item, next)
                     }
                     onChangeRating={async (next) => {
+                      if (!user?.email) {
+                        await persistRatedPatch(item, { rating: next })
+                        return
+                      }
                       const prev = ratedItems
                       setRatedItems((items) =>
                         items.map((x) =>
@@ -1232,6 +1325,10 @@ export default function ListsPage() {
                       }
                     }}
                     onSaveNote={async (next) => {
+                      if (!user?.email) {
+                        await persistRatedPatch(item, { note: next })
+                        return
+                      }
                       const prev = ratedItems
                       setRatedItems((items) =>
                         items.map((x) =>
@@ -1283,6 +1380,10 @@ export default function ListsPage() {
                     entryDateLabel="Rated"
                     entryDateIso={item.firstRatedAt ?? item.updatedAt}
                     onChangeStatus={async (next) => {
+                      if (!user?.email) {
+                        await persistRatedPatch(item, { status: next })
+                        return
+                      }
                       const prev = ratedItems
                       setRatedItems((items) =>
                         items.map((x) =>
@@ -1302,6 +1403,10 @@ export default function ListsPage() {
                       handleEpisodeProgressUpdate(item, next)
                     }
                     onChangeRating={async (next) => {
+                      if (!user?.email) {
+                        await persistRatedPatch(item, { rating: next })
+                        return
+                      }
                       const prev = ratedItems
                       setRatedItems((items) =>
                         items.map((x) =>
@@ -1318,6 +1423,10 @@ export default function ListsPage() {
                       }
                     }}
                     onSaveNote={async (next) => {
+                      if (!user?.email) {
+                        await persistRatedPatch(item, { note: next })
+                        return
+                      }
                       const prev = ratedItems
                       setRatedItems((items) =>
                         items.map((x) =>

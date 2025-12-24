@@ -25,6 +25,7 @@ export type ContinueItem = {
   id: string
   title: string
   posterUrl: string | null
+  type: MediaType
   status: EntryStatus
   progressLabel: string
   progressValue: number

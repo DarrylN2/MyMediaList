@@ -17,6 +17,7 @@ import type {
 } from '@/components/main-page/types'
 import { buildMediaRouteId } from '@/lib/media-route'
 import type { MediaType } from '@/types'
+import { ensureDemoState } from '@/data/demoStore'
 
 const DAY_LABELS = [
   'Sunday',
@@ -61,10 +62,13 @@ const CATEGORY_GROUPS: Array<{
 ]
 
 export default function Home() {
-  const { user } = useAuth()
+  const { user, beginAppLoading, endAppLoading } = useAuth()
   const [entries, setEntries] = useState<DashboardEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [demoEntries, setDemoEntries] = useState<DashboardEntry[]>([])
+  const [demoLoading, setDemoLoading] = useState(false)
+  const [demoError, setDemoError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user?.email) {
@@ -77,6 +81,7 @@ export default function Home() {
     const controller = new AbortController()
     setLoading(true)
     setError(null)
+    beginAppLoading()
 
     const load = async () => {
       try {
@@ -95,23 +100,57 @@ export default function Home() {
         setError(err instanceof Error ? err.message : 'Unable to load entries.')
       } finally {
         if (!controller.signal.aborted) setLoading(false)
+        endAppLoading()
       }
     }
 
     void load()
     return () => controller.abort()
+  }, [beginAppLoading, endAppLoading, user?.email])
+
+  useEffect(() => {
+    if (user?.email) {
+      setDemoEntries([])
+      setDemoError(null)
+      setDemoLoading(false)
+      return
+    }
+
+    let active = true
+    setDemoLoading(true)
+    setDemoError(null)
+
+    ensureDemoState()
+      .then((state) => {
+        if (active) setDemoEntries(state.entries)
+      })
+      .catch((err) => {
+        if (!active) return
+        setDemoError(
+          err instanceof Error ? err.message : 'Unable to load demo data.',
+        )
+      })
+      .finally(() => {
+        if (active) setDemoLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
   }, [user?.email])
 
+  const entriesSource = user?.email ? entries : demoEntries
+
   const entriesByCreated = useMemo(() => {
-    return [...entries].sort(
+    return [...entriesSource].sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     )
-  }, [entries])
+  }, [entriesSource])
 
   const ratedEntries = useMemo(
-    () => entries.filter((entry) => (entry.rating ?? 0) > 0),
-    [entries],
+    () => entriesSource.filter((entry) => (entry.rating ?? 0) > 0),
+    [entriesSource],
   )
 
   const continueItems = useMemo<ContinueItem[]>(() => {
@@ -139,6 +178,7 @@ export default function Home() {
           id: `${entry.media.provider}:${entry.media.providerId}`,
           title: entry.media.title,
           posterUrl: entry.media.posterUrl,
+          type: entry.media.type,
           status: entry.status,
           progressLabel,
           progressValue,
@@ -198,10 +238,10 @@ export default function Home() {
   }, [entriesByCreated])
 
   const stats = useMemo<DashboardStats>(() => {
-    const totalItems = entries.length
+    const totalItems = entriesSource.length
     const now = Date.now()
     const weekAgo = now - 7 * 24 * 60 * 60 * 1000
-    const newThisWeek = entries.filter((entry) => {
+    const newThisWeek = entriesSource.filter((entry) => {
       const created = new Date(entry.createdAt).getTime()
       return Number.isFinite(created) && created >= weekAgo
     }).length
@@ -215,7 +255,7 @@ export default function Home() {
       : null
 
     const categoryCounts = CATEGORY_GROUPS.map((group) => {
-      const count = entries.filter((entry) =>
+      const count = entriesSource.filter((entry) =>
         group.types.includes(entry.media.type),
       ).length
       return {
@@ -237,7 +277,7 @@ export default function Home() {
     }))
 
     const genreCounts = new Map<string, number>()
-    entries.forEach((entry) => {
+    entriesSource.forEach((entry) => {
       ;(entry.media.genres ?? []).forEach((genre) => {
         if (!genre) return
         genreCounts.set(genre, (genreCounts.get(genre) ?? 0) + 1)
@@ -249,7 +289,7 @@ export default function Home() {
       .map(([label, count]) => ({ label, count }))
 
     const dayCounts = new Map<number, number>()
-    entries.forEach((entry) => {
+    entriesSource.forEach((entry) => {
       const created = new Date(entry.createdAt)
       if (Number.isNaN(created.getTime())) return
       const day = created.getDay()
@@ -270,7 +310,7 @@ export default function Home() {
       mostWatchedGenre: topGenres[0]?.label ?? null,
       mostActiveDay,
     }
-  }, [entries, ratedEntries])
+  }, [entriesSource, ratedEntries])
 
   const activityChips = useMemo<ActivityChip[]>(
     () => [
@@ -301,17 +341,27 @@ export default function Home() {
 
   return (
     <div className="space-y-8 pb-6">
-      {error ? (
+      {user?.email && error ? (
         <div className="rounded-2xl border border-border bg-card/80 p-4 text-sm text-muted-foreground">
           {error}
         </div>
       ) : null}
-      {loading && !entries.length ? (
+      {!user?.email && demoError ? (
+        <div className="rounded-2xl border border-border bg-card/80 p-4 text-sm text-muted-foreground">
+          {demoError}
+        </div>
+      ) : null}
+      {user?.email && loading && !entries.length ? (
         <div className="rounded-2xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
           Loading your dashboard...
         </div>
       ) : null}
-      <SolarSystemHero items={entries} />
+      {!user?.email && demoLoading && !demoEntries.length ? (
+        <div className="rounded-2xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
+          Loading demo dashboard...
+        </div>
+      ) : null}
+      <SolarSystemHero items={entriesSource} />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="space-y-6">
           <TodaySection continueItems={continueItems} />

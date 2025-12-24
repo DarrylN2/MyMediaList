@@ -29,6 +29,10 @@ export const mockMedia: Media[] = [
       'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498-C6FPmWm59CyP.jpg',
     provider: 'anilist',
     providerId: '16498',
+    description:
+      'Humanity fights for survival behind massive walls as titans threaten to wipe them out.',
+    episodeCount: 24,
+    genres: ['Action', 'Drama', 'Fantasy'],
   },
   {
     id: '3',
@@ -39,6 +43,9 @@ export const mockMedia: Media[] = [
       'https://images.igdb.com/igdb/image/upload/t_cover_big/co1wyy.jpg',
     provider: 'igdb',
     providerId: '1942',
+    description:
+      'A monster hunter searches for his adopted daughter across a war-torn world.',
+    genres: ['RPG', 'Adventure', 'Fantasy'],
   },
   {
     id: '4',
@@ -49,6 +56,10 @@ export const mockMedia: Media[] = [
       'https://image.tmdb.org/t/p/w500/8Vt6mWEReuy4e61K2zH6tYUDMx2.jpg',
     provider: 'tmdb',
     providerId: '569094',
+    description:
+      'Miles Morales teams up with Spider-People across the multiverse to stop a new threat.',
+    durationMinutes: 140,
+    genres: ['Animation', 'Action', 'Adventure'],
   },
   {
     id: '5',
@@ -59,6 +70,10 @@ export const mockMedia: Media[] = [
       'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-PEn1CTc93blC.jpg',
     provider: 'anilist',
     providerId: '101922',
+    description:
+      'A swordsman joins a demon-slaying corps to save his sister and avenge his family.',
+    episodeCount: 26,
+    genres: ['Action', 'Fantasy'],
   },
   {
     id: '6',
@@ -69,6 +84,10 @@ export const mockMedia: Media[] = [
       'https://image.tmdb.org/t/p/w500/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg',
     provider: 'tmdb',
     providerId: '27205',
+    description:
+      'A thief who steals secrets from dreams takes on his most impossible heist.',
+    durationMinutes: 148,
+    genres: ['Sci-Fi', 'Thriller', 'Action'],
   },
   {
     id: '7',
@@ -79,6 +98,9 @@ export const mockMedia: Media[] = [
       'https://images.igdb.com/igdb/image/upload/t_cover_big/co4jni.jpg',
     provider: 'igdb',
     providerId: '119133',
+    description:
+      'Explore a vast fantasy realm and reclaim the Elden Ring as a Tarnished hero.',
+    genres: ['Action', 'RPG', 'Adventure'],
   },
   {
     id: '8',
@@ -89,6 +111,10 @@ export const mockMedia: Media[] = [
       'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx21459-RoPwgrZ32gM3.jpg',
     provider: 'anilist',
     providerId: '21459',
+    description:
+      'A quirkless teen enrolls in a hero academy to become the next symbol of peace.',
+    episodeCount: 13,
+    genres: ['Action', 'Superhero'],
   },
 ]
 

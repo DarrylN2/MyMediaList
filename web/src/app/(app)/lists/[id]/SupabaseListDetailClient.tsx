@@ -118,7 +118,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function SupabaseListDetailClient({ listId }: { listId: string }) {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, beginAppLoading, endAppLoading } = useAuth()
   const [list, setList] = useState<ListDetail | null>(null)
   const [items, setItems] = useState<ListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -148,6 +148,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
     const controller = new AbortController()
     setLoading(true)
     setError(null)
+    beginAppLoading()
 
     const load = async () => {
       try {
@@ -175,12 +176,13 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
         )
       } finally {
         if (!controller.signal.aborted) setLoading(false)
+        endAppLoading()
       }
     }
 
     load()
     return () => controller.abort()
-  }, [listId, user?.email])
+  }, [beginAppLoading, endAppLoading, listId, user?.email])
 
   const processedItems = useMemo(() => {
     const q = query.trim().toLowerCase()

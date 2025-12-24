@@ -75,6 +75,8 @@ export function TodaySection({
           {visibleItems.length ? (
             visibleItems.map((item) => {
               const tone = statusToneMap[item.status] ?? 'var(--category-movie)'
+              const showProgress = item.type !== 'movie' && item.type !== 'game'
+
               return (
                 <div
                   key={item.id}
@@ -114,15 +116,17 @@ export function TodaySection({
                           {item.progressLabel}
                         </p>
                       </div>
-                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${item.progressValue}%`,
-                            background: `linear-gradient(90deg, ${tone}, var(--primary))`,
-                          }}
-                        />
-                      </div>
+                      {showProgress ? (
+                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${item.progressValue}%`,
+                              background: `linear-gradient(90deg, ${tone}, var(--primary))`,
+                            }}
+                          />
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   <div className="absolute inset-0 flex items-center justify-center bg-white/70 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">

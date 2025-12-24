@@ -186,7 +186,7 @@ export default function SearchPage() {
 function SearchPageClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user } = useAuth()
+  const { user, openAuthDialog } = useAuth()
   const [ratedKeys, setRatedKeys] = useState<Set<string>>(() => new Set())
   const [ratedValues, setRatedValues] = useState<Map<string, number>>(
     () => new Map(),
@@ -537,7 +537,7 @@ function SearchPageClient() {
 
   const handleAdd = async (item: SearchResultItem) => {
     if (!user) {
-      toast('Log in to add items to your list.')
+      openAuthDialog('login')
       return
     }
 
@@ -662,7 +662,7 @@ function SearchPageClient() {
 
   const handleRate = async (item: SearchResultItem) => {
     if (!user) {
-      toast('Log in to rate items.')
+      openAuthDialog('login')
       return
     }
 

@@ -72,8 +72,14 @@ export function TopBar() {
   const [categoryDraft, setCategoryDraft] = useState<SearchCategoryFilter>(() =>
     parseCategoryFilter(searchParams.get('category')),
   )
-  const [profileOpen, setProfileOpen] = useState(false)
-  const { status, user, switchView } = useAuth()
+  const {
+    status,
+    user,
+    dialogOpen,
+    setDialogOpen,
+    openAuthDialog,
+    switchView,
+  } = useAuth()
 
   const category = useMemo(
     () =>
@@ -113,7 +119,10 @@ export function TopBar() {
   const profileInitial = user?.username?.[0]?.toUpperCase()
 
   const handleDialogChange = (isOpen: boolean) => {
-    setProfileOpen(isOpen)
+    setDialogOpen(isOpen)
+    if (isOpen && status !== 'authenticated' && status === 'logged-out') {
+      switchView('login')
+    }
     if (!isOpen && status !== 'authenticated') {
       switchView('login')
     }
@@ -212,12 +221,15 @@ export function TopBar() {
             >
               <Link href="/lists">My Lists</Link>
             </Button>
-            <Dialog open={profileOpen} onOpenChange={handleDialogChange}>
+            <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
               <DialogTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="rounded-full border border-border bg-card"
+                  onClick={() =>
+                    user ? setDialogOpen(true) : openAuthDialog('login')
+                  }
                 >
                   {user ? (
                     <span className="text-sm font-semibold">
