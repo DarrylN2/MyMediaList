@@ -71,8 +71,9 @@ export default function MediaDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
-  const { user, openAuthDialog, beginAppLoading, endAppLoading } = useAuth()
-  const userId = user?.email ?? null
+  const { user, apiFetch, openAuthDialog, beginAppLoading, endAppLoading } =
+    useAuth()
+  const userId = user?.id ?? null
 
   const [media, setMedia] = useState<Media | null>(null)
   const [status, setStatus] = useState<EntryStatus>('Planning')
@@ -157,7 +158,7 @@ export default function MediaDetailPage({
     loadMedia()
 
     return () => controller.abort()
-  }, [id, userId])
+  }, [id])
 
   useEffect(() => {
     const parsed = parseMediaRouteId(id)
@@ -194,10 +195,8 @@ export default function MediaDetailPage({
     const loadEntry = async () => {
       try {
         beginAppLoading()
-        const response = await fetch(
-          `/api/list?provider=${parsed.provider}&sourceId=${parsed.sourceId}&userId=${encodeURIComponent(
-            userId,
-          )}`,
+        const response = await apiFetch(
+          `/api/list?provider=${parsed.provider}&sourceId=${parsed.sourceId}`,
           { signal: controller.signal },
         )
 
@@ -247,7 +246,7 @@ export default function MediaDetailPage({
     loadEntry()
 
     return () => controller.abort()
-  }, [beginAppLoading, endAppLoading, id, userId])
+  }, [apiFetch, beginAppLoading, endAppLoading, id, userId])
 
   const isSpotifyAlbum =
     media?.provider === 'spotify' && media?.type === 'album'
@@ -335,9 +334,7 @@ export default function MediaDetailPage({
       setListsLoading(true)
       setListsError(null)
 
-      const response = await fetch(
-        `/api/lists?userId=${encodeURIComponent(userId)}`,
-      )
+      const response = await apiFetch('/api/lists')
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
         throw new Error(payload?.error ?? 'Unable to load lists.')
@@ -407,11 +404,10 @@ export default function MediaDetailPage({
     if (!userId || !trackToRate) return
     setTrackRateSaving(true)
     try {
-      const response = await fetch('/api/list', {
+      const response = await apiFetch('/api/list', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId,
           media: trackToRate,
           entry: {
             status: trackRateStatus,
@@ -443,11 +439,10 @@ export default function MediaDetailPage({
     if (!userId || !targetMedia?.provider || !targetMedia.providerId) return
     setAddSavingListId(listId)
     try {
-      const response = await fetch(`/api/lists/${listId}/items`, {
+      const response = await apiFetch(`/api/lists/${listId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId,
           media: {
             provider: targetMedia.provider,
             providerId: targetMedia.providerId,
@@ -494,11 +489,10 @@ export default function MediaDetailPage({
 
     setCreateAndAddSaving(true)
     try {
-      const createRes = await fetch('/api/lists', {
+      const createRes = await apiFetch('/api/lists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId,
           title,
           description: newListDescription.trim(),
         }),
@@ -572,11 +566,10 @@ export default function MediaDetailPage({
 
     setIsSaving(true)
     try {
-      const response = await fetch('/api/list', {
+      const response = await apiFetch('/api/list', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId,
           media: {
             provider: media.provider,
             providerId: media.providerId,

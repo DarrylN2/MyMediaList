@@ -101,7 +101,8 @@ function buildMediaRouteId(media: {
 
 export default function ListsPage() {
   const router = useRouter()
-  const { user, openAuthDialog, beginAppLoading, endAppLoading } = useAuth()
+  const { user, apiFetch, openAuthDialog, beginAppLoading, endAppLoading } =
+    useAuth()
   const [query, setQuery] = useState('')
   const [listSort, setListSort] = useState<ListSort>('recent')
   const [userLists, setUserLists] = useState<
@@ -240,14 +241,14 @@ export default function ListsPage() {
   }, [filteredDemoLists, listSort])
 
   const totalItems = useMemo(() => {
-    if (user?.email) {
+    if (user) {
       return userLists.reduce((sum, list) => sum + list.itemCount, 0)
     }
     return demoLists.reduce((sum, list) => sum + list.itemCount, 0)
-  }, [demoLists, user?.email, userLists])
+  }, [demoLists, user, userLists])
 
   useEffect(() => {
-    if (!user?.email) {
+    if (!user) {
       setUserLists([])
       setUserListsError(null)
       setUserListsLoading(false)
@@ -261,10 +262,7 @@ export default function ListsPage() {
 
     const load = async () => {
       try {
-        const res = await fetch(
-          `/api/lists?userId=${encodeURIComponent(user.email)}`,
-          { signal: controller.signal },
-        )
+        const res = await apiFetch('/api/lists', { signal: controller.signal })
         if (!res.ok) {
           const payload = await res.json().catch(() => null)
           throw new Error(payload?.error ?? 'Failed to load lists.')
@@ -281,10 +279,9 @@ export default function ListsPage() {
         const lists = payload.lists ?? []
         const listSummaries = await Promise.all(
           lists.map(async (list) => {
-            const countRes = await fetch(
-              `/api/lists/${list.id}?userId=${encodeURIComponent(user.email)}`,
-              { signal: controller.signal },
-            )
+            const countRes = await apiFetch(`/api/lists/${list.id}`, {
+              signal: controller.signal,
+            })
             if (!countRes.ok)
               return { itemCount: 0, posterUrls: [] as string[] }
 
@@ -336,10 +333,10 @@ export default function ListsPage() {
 
     load()
     return () => controller.abort()
-  }, [beginAppLoading, endAppLoading, user?.email])
+  }, [apiFetch, beginAppLoading, endAppLoading, user])
 
   useEffect(() => {
-    if (!user?.email) {
+    if (!user) {
       setRatedItems([])
       setRatedError(null)
       setRatedLoading(false)
@@ -353,10 +350,9 @@ export default function ListsPage() {
 
     const load = async () => {
       try {
-        const response = await fetch(
-          `/api/ratings?userId=${encodeURIComponent(user.email)}`,
-          { signal: controller.signal },
-        )
+        const response = await apiFetch('/api/ratings', {
+          signal: controller.signal,
+        })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
           throw new Error(payload?.error ?? 'Failed to load rated items.')
@@ -428,10 +424,10 @@ export default function ListsPage() {
 
     load()
     return () => controller.abort()
-  }, [beginAppLoading, endAppLoading, user?.email])
+  }, [apiFetch, beginAppLoading, endAppLoading, user])
 
   useEffect(() => {
-    if (user?.email) {
+    if (user) {
       setDemoLists([])
       setDemoRatedItems([])
       setDemoError(null)
@@ -462,7 +458,7 @@ export default function ListsPage() {
     return () => {
       active = false
     }
-  }, [user?.email])
+  }, [user])
 
   useEffect(() => {
     try {
@@ -483,7 +479,7 @@ export default function ListsPage() {
     }
   }, [ratedViewMode])
 
-  const ratedItemsSource = user?.email ? ratedItems : demoRatedItems
+  const ratedItemsSource = user ? ratedItems : demoRatedItems
 
   const visibleRatedItems = useMemo(() => {
     const q = ratedQuery.trim().toLowerCase()
@@ -557,16 +553,15 @@ export default function ListsPage() {
       episodeProgress: number | null
     }>,
   ) => {
-    if (!user?.email) {
+    if (!user) {
       applyDemoPatch(item, entry)
       return
     }
 
-    const res = await fetch('/api/list', {
+    const res = await apiFetch('/api/list', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: user.email,
         media: {
           provider: item.provider,
           providerId: item.providerId,
@@ -622,7 +617,7 @@ export default function ListsPage() {
     const shouldPersist = updateProgress || nextStatus !== item.status
     if (!shouldPersist) return
 
-    if (!user?.email) {
+    if (!user) {
       applyDemoPatch(item, {
         status: nextStatus,
         ...(updateProgress ? { episodeProgress: nextProgress ?? null } : {}),
@@ -656,7 +651,7 @@ export default function ListsPage() {
   }
 
   const createList = async () => {
-    if (!user?.email) {
+    if (!user) {
       openAuthDialog('login')
       return
     }
@@ -673,11 +668,10 @@ export default function ListsPage() {
     setNewListError(null)
 
     try {
-      const res = await fetch('/api/lists', {
+      const res = await apiFetch('/api/lists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user.email,
           title,
           description: description || undefined,
         }),
@@ -708,6 +702,7 @@ export default function ListsPage() {
             description: created.description,
             updatedAt: created.updated_at,
             itemCount: 0,
+            posterUrls: [],
           },
           ...prev,
         ]
@@ -763,7 +758,7 @@ export default function ListsPage() {
             </div>
           </div>
 
-          {user?.email ? (
+          {user ? (
             <Dialog open={newListOpen} onOpenChange={setNewListOpen}>
               <DialogTrigger asChild>
                 <Button
@@ -851,7 +846,7 @@ export default function ListsPage() {
 
         <p className="text-sm text-muted-foreground">
           Tracking {totalItems} items across{' '}
-          {user?.email ? userLists.length : demoLists.length} lists.
+          {user ? userLists.length : demoLists.length} lists.
         </p>
       </header>
 
@@ -865,7 +860,7 @@ export default function ListsPage() {
           </p>
         </div>
 
-        {user?.email ? (
+        {user ? (
           userListsLoading ? (
             <div className="rounded-3xl border border-dashed border-muted-foreground/30 bg-white/80 p-10 text-center text-muted-foreground">
               Loading your lists…
@@ -1123,17 +1118,17 @@ export default function ListsPage() {
         </div>
 
         <div className="mt-6">
-          {user?.email && ratedLoading ? (
+          {user && ratedLoading ? (
             <div className="py-6 text-sm text-muted-foreground">
               Loading rated items…
             </div>
-          ) : user?.email && ratedError ? (
+          ) : user && ratedError ? (
             <div className="py-6 text-sm text-rose-700">{ratedError}</div>
-          ) : !user?.email && demoLoading ? (
+          ) : !user && demoLoading ? (
             <div className="py-6 text-sm text-muted-foreground">
               Loading demo ratings...
             </div>
-          ) : !user?.email && demoError ? (
+          ) : !user && demoError ? (
             <div className="py-6 text-sm text-rose-700">{demoError}</div>
           ) : visibleRatedItems.length === 0 ? (
             <div className="py-6 text-sm text-muted-foreground">
@@ -1183,7 +1178,7 @@ export default function ListsPage() {
                       entryDateLabel="Rated"
                       entryDateIso={item.firstRatedAt ?? item.updatedAt}
                       onChangeStatus={async (next) => {
-                        if (!user?.email) {
+                        if (!user) {
                           await persistRatedPatch(item, { status: next })
                           return
                         }
@@ -1206,7 +1201,7 @@ export default function ListsPage() {
                         handleEpisodeProgressUpdate(item, next)
                       }
                       onChangeRating={async (next) => {
-                        if (!user?.email) {
+                        if (!user) {
                           await persistRatedPatch(item, { rating: next })
                           return
                         }
@@ -1226,7 +1221,7 @@ export default function ListsPage() {
                         }
                       }}
                       onSaveNote={async (next) => {
-                        if (!user?.email) {
+                        if (!user) {
                           await persistRatedPatch(item, { note: next })
                           return
                         }
@@ -1282,7 +1277,7 @@ export default function ListsPage() {
                     entryDateLabel="Rated"
                     entryDateIso={item.firstRatedAt ?? item.updatedAt}
                     onChangeStatus={async (next) => {
-                      if (!user?.email) {
+                      if (!user) {
                         await persistRatedPatch(item, { status: next })
                         return
                       }
@@ -1305,7 +1300,7 @@ export default function ListsPage() {
                       handleEpisodeProgressUpdate(item, next)
                     }
                     onChangeRating={async (next) => {
-                      if (!user?.email) {
+                      if (!user) {
                         await persistRatedPatch(item, { rating: next })
                         return
                       }
@@ -1325,7 +1320,7 @@ export default function ListsPage() {
                       }
                     }}
                     onSaveNote={async (next) => {
-                      if (!user?.email) {
+                      if (!user) {
                         await persistRatedPatch(item, { note: next })
                         return
                       }
@@ -1380,7 +1375,7 @@ export default function ListsPage() {
                     entryDateLabel="Rated"
                     entryDateIso={item.firstRatedAt ?? item.updatedAt}
                     onChangeStatus={async (next) => {
-                      if (!user?.email) {
+                      if (!user) {
                         await persistRatedPatch(item, { status: next })
                         return
                       }
@@ -1403,7 +1398,7 @@ export default function ListsPage() {
                       handleEpisodeProgressUpdate(item, next)
                     }
                     onChangeRating={async (next) => {
-                      if (!user?.email) {
+                      if (!user) {
                         await persistRatedPatch(item, { rating: next })
                         return
                       }
@@ -1423,7 +1418,7 @@ export default function ListsPage() {
                       }
                     }}
                     onSaveNote={async (next) => {
-                      if (!user?.email) {
+                      if (!user) {
                         await persistRatedPatch(item, { note: next })
                         return
                       }

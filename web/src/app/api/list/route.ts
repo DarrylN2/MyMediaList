@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase-server'
+import { getAuthenticatedUserId } from '@/lib/supabase-auth-server'
 import type { EntryStatus, Media, MediaProvider } from '@/types'
 import { igdbFetch } from '@/lib/igdb-server'
 import { spotifyFetchJson } from '@/lib/spotify-server'
@@ -8,7 +9,6 @@ const TMDB_API_BASE = 'https://api.themoviedb.org/3'
 const ANILIST_API_BASE = 'https://graphql.anilist.co'
 
 interface PersistMediaPayload {
-  userId: string
   media: {
     provider: MediaProvider
     providerId: string
@@ -47,15 +47,19 @@ interface IgdbGameMetadata {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const userId = searchParams.get('userId')
   const provider = searchParams.get('provider')
   const sourceId = searchParams.get('sourceId')
 
-  if (!userId || !provider || !sourceId) {
+  if (!provider || !sourceId) {
     return NextResponse.json(
-      { error: 'Missing userId, provider, or sourceId.' },
+      { error: 'Missing provider or sourceId.' },
       { status: 400 },
     )
+  }
+
+  const userId = await getAuthenticatedUserId(request)
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
   }
 
   try {
@@ -108,7 +112,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await upsertMediaEntry(payload)
+    const userId = await getAuthenticatedUserId(request)
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
+    }
+
+    const result = await upsertMediaEntry(userId, payload)
     return NextResponse.json(result)
   } catch (error) {
     console.error('Failed to upsert media entry', error)
@@ -127,7 +136,12 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const result = await upsertMediaEntry(payload)
+    const userId = await getAuthenticatedUserId(request)
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
+    }
+
+    const result = await upsertMediaEntry(userId, payload)
     return NextResponse.json(result)
   } catch (error) {
     console.error('Failed to update media entry', error)
@@ -142,7 +156,6 @@ function isValidPayload(
   payload: PersistMediaPayload,
 ): payload is PersistMediaPayload {
   return Boolean(
-    payload.userId &&
     payload.media?.provider &&
     payload.media.providerId &&
     payload.media.title &&
@@ -150,7 +163,7 @@ function isValidPayload(
   )
 }
 
-async function upsertMediaEntry(payload: PersistMediaPayload) {
+async function upsertMediaEntry(userId: string, payload: PersistMediaPayload) {
   const supabase = getSupabaseServerClient()
 
   const mediaRow = await ensureMediaRow(supabase, payload.media)
@@ -164,7 +177,7 @@ async function upsertMediaEntry(payload: PersistMediaPayload) {
         : undefined
 
   const entryUpdate: Record<string, unknown> = {
-    user_identifier: payload.userId,
+    user_identifier: userId,
     media_id: mediaRow.id,
     status: payload.entry?.status ?? 'Planning',
     user_rating: payload.entry?.rating ?? null,

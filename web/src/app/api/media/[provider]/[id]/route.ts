@@ -96,24 +96,25 @@ function mapIgdbRelatedGames(
   items: Array<IgdbRelatedGame | null> | null | undefined,
 ): MediaPreview[] {
   return (items ?? [])
-    .map((item) => {
-      if (!item?.id || !item?.name) return null
+    .flatMap((item) => {
+      if (!item?.id || !item?.name) return []
       const year = item.first_release_date
         ? new Date(item.first_release_date * 1000).getUTCFullYear()
         : undefined
-      return {
-        id: `igdb-game-${item.id}`,
-        type: 'game',
-        title: item.name,
-        year,
-        posterUrl: item.cover?.image_id
-          ? buildIgdbImageUrl(item.cover.image_id, 't_cover_big')
-          : undefined,
-        provider: 'igdb',
-        providerId: String(item.id),
-      }
+      return [
+        {
+          id: `igdb-game-${item.id}`,
+          type: 'game',
+          title: item.name,
+          year,
+          posterUrl: item.cover?.image_id
+            ? buildIgdbImageUrl(item.cover.image_id, 't_cover_big')
+            : undefined,
+          provider: 'igdb',
+          providerId: String(item.id),
+        } satisfies MediaPreview,
+      ]
     })
-    .filter((item): item is MediaPreview => item != null)
     .slice(0, 12)
 }
 
@@ -184,19 +185,16 @@ async function fetchIgdbGameDetail(
     .slice(0, 8)
     .map((imageId) => buildIgdbImageUrl(imageId, 't_1080p'))
 
-  const videos =
-    (game.videos ?? [])
-      .map((video) => {
-        const videoId = video?.video_id ?? undefined
-        if (!videoId) return null
-        return {
-          videoId,
-          name: video?.name ?? undefined,
-        }
-      })
-      .filter((video): video is { videoId: string; name?: string } =>
-        Boolean(video?.videoId),
-      ) ?? []
+  const videos = (game.videos ?? []).flatMap((video) => {
+    const videoId = video?.video_id ?? undefined
+    if (!videoId) return []
+    return [
+      {
+        videoId,
+        name: video?.name ?? undefined,
+      },
+    ]
+  })
 
   const backdropUrl = artworkImages[0] ?? additionalImages[0]
 

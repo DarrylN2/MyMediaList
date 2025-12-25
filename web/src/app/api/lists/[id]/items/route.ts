@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase-server'
+import { getAuthenticatedUserId } from '@/lib/supabase-auth-server'
 import type { Media, MediaProvider } from '@/types'
 import { igdbFetch } from '@/lib/igdb-server'
 import { spotifyFetchJson } from '@/lib/spotify-server'
@@ -36,13 +37,9 @@ interface IgdbGameMetadata {
   } | null> | null
 }
 
-function isValidBody(
-  body: unknown,
-): body is { userId: string; media: MediaPayload } {
-  const payload = body as { userId?: unknown; media?: Partial<MediaPayload> }
+function isValidBody(body: unknown): body is { media: MediaPayload } {
+  const payload = body as { media?: Partial<MediaPayload> }
   return Boolean(
-    typeof payload?.userId === 'string' &&
-    payload.userId.length > 0 &&
     payload.media &&
     payload.media.provider &&
     payload.media.providerId &&
@@ -62,6 +59,11 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid payload.' }, { status: 400 })
   }
 
+  const userId = await getAuthenticatedUserId(request)
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
+  }
+
   try {
     const supabase = getSupabaseServerClient()
 
@@ -70,7 +72,7 @@ export async function POST(
       .from('lists')
       .select('id')
       .eq('id', listId)
-      .eq('user_identifier', body.userId)
+      .eq('user_identifier', userId)
       .maybeSingle()
     if (listError) throw listError
     if (!listRow) {
@@ -101,14 +103,15 @@ export async function DELETE(
 ) {
   const { id: listId } = await params
   const { searchParams } = new URL(request.url)
-  const userId = searchParams.get('userId')
   const mediaId = searchParams.get('mediaId')
 
-  if (!userId || !mediaId) {
-    return NextResponse.json(
-      { error: 'Missing userId or mediaId.' },
-      { status: 400 },
-    )
+  if (!mediaId) {
+    return NextResponse.json({ error: 'Missing mediaId.' }, { status: 400 })
+  }
+
+  const userId = await getAuthenticatedUserId(request)
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
   }
 
   try {

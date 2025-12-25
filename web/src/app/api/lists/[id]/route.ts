@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase-server'
+import { getAuthenticatedUserId } from '@/lib/supabase-auth-server'
 import type { EntryStatus } from '@/types'
 
 export async function GET(
@@ -7,11 +8,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const { searchParams } = new URL(request.url)
-  const userId = searchParams.get('userId')
-
+  const userId = await getAuthenticatedUserId(request)
   if (!userId) {
-    return NextResponse.json({ error: 'Missing userId.' }, { status: 400 })
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
   }
 
   try {
@@ -119,19 +118,18 @@ export async function PATCH(
 ) {
   const { id } = await params
   const payload = (await request.json()) as {
-    userId?: string
     title?: string
     description?: string | null
   }
 
-  const userId = payload.userId?.trim()
   const title = payload.title?.trim()
   const description = payload.description?.trim()
 
+  const userId = await getAuthenticatedUserId(request)
   if (!userId || !title) {
     return NextResponse.json(
-      { error: 'Missing userId or title.' },
-      { status: 400 },
+      { error: userId ? 'Missing title.' : 'Unauthorized.' },
+      { status: userId ? 400 : 401 },
     )
   }
 
@@ -168,11 +166,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const { searchParams } = new URL(request.url)
-  const userId = searchParams.get('userId')
-
+  const userId = await getAuthenticatedUserId(request)
   if (!userId) {
-    return NextResponse.json({ error: 'Missing userId.' }, { status: 400 })
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
   }
 
   try {

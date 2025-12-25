@@ -118,7 +118,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function SupabaseListDetailClient({ listId }: { listId: string }) {
   const router = useRouter()
-  const { user, beginAppLoading, endAppLoading } = useAuth()
+  const { user, apiFetch, beginAppLoading, endAppLoading } = useAuth()
   const [list, setList] = useState<ListDetail | null>(null)
   const [items, setItems] = useState<ListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -139,7 +139,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
   const [removingMediaId, setRemovingMediaId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!user?.email) {
+    if (!user) {
       setError('Log in to view this list.')
       setLoading(false)
       return
@@ -152,10 +152,9 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
 
     const load = async () => {
       try {
-        const res = await fetch(
-          `/api/lists/${listId}?userId=${encodeURIComponent(user.email)}`,
-          { signal: controller.signal },
-        )
+        const res = await apiFetch(`/api/lists/${listId}`, {
+          signal: controller.signal,
+        })
         if (!res.ok) {
           const payload = await res.json().catch(() => null)
           throw new Error(payload?.error ?? 'Unable to load list.')
@@ -182,7 +181,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
 
     load()
     return () => controller.abort()
-  }, [beginAppLoading, endAppLoading, listId, user?.email])
+  }, [apiFetch, beginAppLoading, endAppLoading, listId, user])
 
   const processedItems = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -271,7 +270,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
   }
 
   const handleUpdateList = async () => {
-    if (!user?.email || !list || editSaving) return
+    if (!user || !list || editSaving) return
     const title = editTitle.trim()
     if (!title) {
       setEditError('Title is required.')
@@ -282,11 +281,10 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
     setEditError(null)
 
     try {
-      const res = await fetch(`/api/lists/${listId}`, {
+      const res = await apiFetch(`/api/lists/${listId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user.email,
           title,
           description: editDescription.trim() || null,
         }),
@@ -310,16 +308,13 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
   }
 
   const handleDeleteList = async () => {
-    if (!user?.email || deleteSaving) return
+    if (!user || deleteSaving) return
 
     setDeleteSaving(true)
     setDeleteError(null)
 
     try {
-      const res = await fetch(
-        `/api/lists/${listId}?userId=${encodeURIComponent(user.email)}`,
-        { method: 'DELETE' },
-      )
+      const res = await apiFetch(`/api/lists/${listId}`, { method: 'DELETE' })
 
       if (!res.ok) {
         const payload = await res.json().catch(() => null)
@@ -339,14 +334,12 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
   }
 
   const handleRemoveEntry = async (entry: (typeof processedItems)[number]) => {
-    if (!user?.email || removingMediaId) return
+    if (!user || removingMediaId) return
     const mediaId = entry.media.id
     setRemovingMediaId(mediaId)
     try {
-      const res = await fetch(
-        `/api/lists/${listId}/items?userId=${encodeURIComponent(
-          user.email,
-        )}&mediaId=${encodeURIComponent(mediaId)}`,
+      const res = await apiFetch(
+        `/api/lists/${listId}/items?mediaId=${encodeURIComponent(mediaId)}`,
         { method: 'DELETE' },
       )
       if (!res.ok) {
@@ -372,7 +365,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
     entry: (typeof processedItems)[number],
     next: number | null,
   ) => {
-    if (!user?.email) return
+    if (!user) return
 
     const currentStatus =
       (entry.entry?.status as import('@/types').EntryStatus) ?? 'Planning'
@@ -420,7 +413,6 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
             status: nextStatus,
             rating: row.entry?.rating ?? null,
             note: row.entry?.note ?? null,
-            episodeProgress: row.entry?.episodeProgress ?? null,
             episodeProgress: updateProgress
               ? (nextProgress ?? null)
               : (row.entry?.episodeProgress ?? null),
@@ -431,11 +423,10 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
       }),
     )
 
-    const res = await fetch('/api/list', {
+    const res = await apiFetch('/api/list', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: user.email,
         media: {
           provider: entry.media.source,
           providerId: entry.media.source_id,
@@ -516,7 +507,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                 entryDateLabel={entry.entry?.firstRatedAt ? 'Rated' : 'Added'}
                 entryDateIso={entry.entry?.firstRatedAt ?? entry.createdAt}
                 onChangeStatus={async (next) => {
-                  if (!user?.email) return
+                  if (!user) return
                   setItems((prev) =>
                     prev.map((row) => {
                       const media = Array.isArray(row.media_items)
@@ -538,11 +529,10 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       }
                     }),
                   )
-                  const res = await fetch('/api/list', {
+                  const res = await apiFetch('/api/list', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      userId: user.email,
                       media: {
                         provider: entry.media.source,
                         providerId: entry.media.source_id,
@@ -573,7 +563,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                   handleEpisodeProgressUpdate(entry, next)
                 }
                 onChangeRating={async (next) => {
-                  if (!user?.email) return
+                  if (!user) return
                   setItems((prev) =>
                     prev.map((row) => {
                       const media = Array.isArray(row.media_items)
@@ -598,11 +588,10 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       }
                     }),
                   )
-                  const res = await fetch('/api/list', {
+                  const res = await apiFetch('/api/list', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      userId: user.email,
                       media: {
                         provider: entry.media.source,
                         providerId: entry.media.source_id,
@@ -630,7 +619,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                   }
                 }}
                 onSaveNote={async (next) => {
-                  if (!user?.email) return
+                  if (!user) return
                   setItems((prev) =>
                     prev.map((row) => {
                       const media = Array.isArray(row.media_items)
@@ -651,11 +640,10 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                       }
                     }),
                   )
-                  const res = await fetch('/api/list', {
+                  const res = await apiFetch('/api/list', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      userId: user.email,
                       media: {
                         provider: entry.media.source,
                         providerId: entry.media.source_id,
@@ -720,7 +708,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
               entryDateLabel={entry.entry?.firstRatedAt ? 'Rated' : 'Added'}
               entryDateIso={entry.entry?.firstRatedAt ?? entry.createdAt}
               onChangeStatus={async (next) => {
-                if (!user?.email) return
+                if (!user) return
                 setItems((prev) =>
                   prev.map((row) => {
                     const media = Array.isArray(row.media_items)
@@ -742,11 +730,10 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                     }
                   }),
                 )
-                const res = await fetch('/api/list', {
+                const res = await apiFetch('/api/list', {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    userId: user.email,
                     media: {
                       provider: entry.media.source,
                       providerId: entry.media.source_id,
@@ -777,7 +764,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                 handleEpisodeProgressUpdate(entry, next)
               }
               onChangeRating={async (next) => {
-                if (!user?.email) return
+                if (!user) return
                 setItems((prev) =>
                   prev.map((row) => {
                     const media = Array.isArray(row.media_items)
@@ -802,11 +789,10 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                     }
                   }),
                 )
-                const res = await fetch('/api/list', {
+                const res = await apiFetch('/api/list', {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    userId: user.email,
                     media: {
                       provider: entry.media.source,
                       providerId: entry.media.source_id,
@@ -834,7 +820,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                 }
               }}
               onSaveNote={async (next) => {
-                if (!user?.email) return
+                if (!user) return
                 setItems((prev) =>
                   prev.map((row) => {
                     const media = Array.isArray(row.media_items)
@@ -855,11 +841,10 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                     }
                   }),
                 )
-                const res = await fetch('/api/list', {
+                const res = await apiFetch('/api/list', {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    userId: user.email,
                     media: {
                       provider: entry.media.source,
                       providerId: entry.media.source_id,
@@ -923,7 +908,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
             entryDateLabel={entry.entry?.firstRatedAt ? 'Rated' : 'Added'}
             entryDateIso={entry.entry?.firstRatedAt ?? entry.createdAt}
             onChangeStatus={async (next) => {
-              if (!user?.email) return
+              if (!user) return
               setItems((prev) =>
                 prev.map((row) => {
                   const media = Array.isArray(row.media_items)
@@ -945,11 +930,10 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                   }
                 }),
               )
-              const res = await fetch('/api/list', {
+              const res = await apiFetch('/api/list', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  userId: user.email,
                   media: {
                     provider: entry.media.source,
                     providerId: entry.media.source_id,
@@ -980,7 +964,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
               handleEpisodeProgressUpdate(entry, next)
             }
             onChangeRating={async (next) => {
-              if (!user?.email) return
+              if (!user) return
               setItems((prev) =>
                 prev.map((row) => {
                   const media = Array.isArray(row.media_items)
@@ -1005,11 +989,10 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                   }
                 }),
               )
-              const res = await fetch('/api/list', {
+              const res = await apiFetch('/api/list', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  userId: user.email,
                   media: {
                     provider: entry.media.source,
                     providerId: entry.media.source_id,
@@ -1037,7 +1020,7 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
               }
             }}
             onSaveNote={async (next) => {
-              if (!user?.email) return
+              if (!user) return
               setItems((prev) =>
                 prev.map((row) => {
                   const media = Array.isArray(row.media_items)
@@ -1058,11 +1041,10 @@ export function SupabaseListDetailClient({ listId }: { listId: string }) {
                   }
                 }),
               )
-              const res = await fetch('/api/list', {
+              const res = await apiFetch('/api/list', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  userId: user.email,
                   media: {
                     provider: entry.media.source,
                     providerId: entry.media.source_id,

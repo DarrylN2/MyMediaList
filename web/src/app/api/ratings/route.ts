@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase-server'
+import { getAuthenticatedUserId } from '@/lib/supabase-auth-server'
 import type { EntryStatus, MediaType } from '@/types'
 
 type RatedEntry = {
@@ -39,11 +40,9 @@ function getEpisodeCount(metadata: unknown): number | null {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const userId = searchParams.get('userId')
-
+  const userId = await getAuthenticatedUserId(request)
   if (!userId) {
-    return NextResponse.json({ error: 'Missing userId.' }, { status: 400 })
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
   }
 
   try {

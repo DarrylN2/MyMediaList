@@ -120,9 +120,6 @@ export function TopBar() {
 
   const handleDialogChange = (isOpen: boolean) => {
     setDialogOpen(isOpen)
-    if (isOpen && status !== 'authenticated' && status === 'logged-out') {
-      switchView('login')
-    }
     if (!isOpen && status !== 'authenticated') {
       switchView('login')
     }

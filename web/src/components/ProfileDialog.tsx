@@ -86,7 +86,7 @@ export function ProfileDialog() {
       />
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button className="w-full" type="submit" disabled={loading}>
-        {loading ? 'Please wait…' : isSignup ? 'Create account' : 'Log in'}
+        {loading ? 'Please wait...' : isSignup ? 'Create account' : 'Log in'}
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}

@@ -9,10 +9,13 @@ import {
   useMemo,
   useState,
 } from 'react'
+import type { Session } from '@supabase/supabase-js'
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 type AuthStatus = 'logged-out' | 'login' | 'signup' | 'authenticated'
 
 type User = {
+  id: string
   username: string
   email: string
 }
@@ -20,6 +23,7 @@ type User = {
 type AuthContextValue = {
   status: AuthStatus
   user: User | null
+  accessToken: string | null
   dialogOpen: boolean
   isAppLoading: boolean
   switchView: (view: Extract<AuthStatus, 'login' | 'signup'>) => void
@@ -32,41 +36,66 @@ type AuthContextValue = {
     password: string
   }) => Promise<void>
   logout: () => void
+  apiFetch: typeof fetch
   beginAppLoading: () => void
   endAppLoading: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
-const STORAGE_KEY = 'mymedialist-auth'
+function formatUsername(session: Session | null) {
+  const email = session?.user?.email ?? ''
+  const userMetadata = session?.user?.user_metadata as Record<string, unknown>
+  const rawUsername =
+    typeof userMetadata?.username === 'string' ? userMetadata.username : null
+  return (rawUsername?.trim() || email.split('@')[0] || 'User').slice(0, 32)
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    if (typeof window === 'undefined') return null
-    const stored = window.localStorage.getItem(STORAGE_KEY)
-    if (!stored) return null
-    try {
-      const parsed = JSON.parse(stored) as { user: User }
-      return parsed?.user ?? null
-    } catch {
-      window.localStorage.removeItem(STORAGE_KEY)
-      return null
+  const [session, setSession] = useState<Session | null>(null)
+  const [status, setStatus] = useState<AuthStatus>('logged-out')
+  const user = useMemo<User | null>(() => {
+    if (!session?.user?.id || !session.user.email) return null
+    return {
+      id: session.user.id,
+      email: session.user.email,
+      username: formatUsername(session),
     }
-  })
-  const [status, setStatus] = useState<AuthStatus>(() =>
-    user ? 'authenticated' : 'logged-out',
-  )
+  }, [
+    session?.user?.id,
+    session?.user?.email,
+    (session?.user?.user_metadata as Record<string, unknown> | undefined)
+      ?.username,
+  ])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [appLoadingCount, setAppLoadingCount] = useState(0)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (status === 'authenticated' && user) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ user }))
-    } else if (!user) {
-      window.localStorage.removeItem(STORAGE_KEY)
+    const supabase = getSupabaseBrowserClient()
+
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        setSession(data.session ?? null)
+        setStatus(data.session ? 'authenticated' : 'logged-out')
+      })
+      .catch((error) => {
+        console.error('Failed to read Supabase session', error)
+        setSession(null)
+        setStatus('logged-out')
+      })
+
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      (_event, nextSession) => {
+        setSession(nextSession ?? null)
+        setStatus(nextSession ? 'authenticated' : 'logged-out')
+      },
+    )
+
+    return () => {
+      subscription.subscription.unsubscribe()
     }
-  }, [status, user])
+  }, [])
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -84,10 +113,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAppLoadingCount((count) => Math.max(0, count - 1))
   }, [])
 
+  const apiFetch = useCallback<AuthContextValue['apiFetch']>(
+    async (input, init) => {
+      const token = session?.access_token
+      if (!token) {
+        throw new Error('You must be logged in.')
+      }
+
+      const headers = new Headers(init?.headers)
+      headers.set('Authorization', `Bearer ${token}`)
+      return fetch(input, { ...init, headers })
+    },
+    [session?.access_token],
+  )
+
   const value = useMemo<AuthContextValue>(
     () => ({
       status,
       user,
+      accessToken: session?.access_token ?? null,
       dialogOpen,
       isAppLoading: appLoadingCount > 0,
       switchView: (view) => setStatus(view),
@@ -98,24 +142,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setDialogOpen(true)
       },
-      login: async (email) => {
-        await new Promise((resolve) => setTimeout(resolve, 300))
-        setUser({ username: email.split('@')[0], email })
-        setStatus('authenticated')
+      login: async (email, password) => {
+        const supabase = getSupabaseBrowserClient()
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+        if (error) throw error
+        if (!data.session) throw new Error('Unable to start session.')
       },
-      signup: async ({ username, email }) => {
-        await new Promise((resolve) => setTimeout(resolve, 300))
-        setUser({ username, email })
-        setStatus('authenticated')
+      signup: async ({ username, email, password }) => {
+        const supabase = getSupabaseBrowserClient()
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              username: username.trim(),
+            },
+          },
+        })
+        if (error) throw error
+        if (!data.session) {
+          throw new Error(
+            'Account created. Check your email to confirm, then log in.',
+          )
+        }
       },
       logout: () => {
-        setUser(null)
-        setStatus('logged-out')
+        const supabase = getSupabaseBrowserClient()
+        void supabase.auth.signOut()
       },
+      apiFetch,
       beginAppLoading,
       endAppLoading,
     }),
-    [appLoadingCount, beginAppLoading, dialogOpen, endAppLoading, status, user],
+    [
+      apiFetch,
+      appLoadingCount,
+      beginAppLoading,
+      dialogOpen,
+      endAppLoading,
+      session?.access_token,
+      status,
+      user,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

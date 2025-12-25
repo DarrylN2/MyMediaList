@@ -186,7 +186,7 @@ export default function SearchPage() {
 function SearchPageClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, openAuthDialog } = useAuth()
+  const { user, apiFetch, openAuthDialog } = useAuth()
   const [ratedKeys, setRatedKeys] = useState<Set<string>>(() => new Set())
   const [ratedValues, setRatedValues] = useState<Map<string, number>>(
     () => new Map(),
@@ -237,7 +237,7 @@ function SearchPageClient() {
   }, [searchQuery])
 
   useEffect(() => {
-    if (!user?.email) {
+    if (!user) {
       setRatedKeys(new Set())
       setRatedValues(new Map())
       setAddedKeys(new Set())
@@ -248,10 +248,9 @@ function SearchPageClient() {
 
     const load = async () => {
       try {
-        const response = await fetch(
-          `/api/ratings?userId=${encodeURIComponent(user.email)}`,
-          { signal: controller.signal },
-        )
+        const response = await apiFetch('/api/ratings', {
+          signal: controller.signal,
+        })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
           throw new Error(payload?.error ?? 'Unable to load ratings.')
@@ -291,7 +290,7 @@ function SearchPageClient() {
 
     void load()
     return () => controller.abort()
-  }, [user?.email])
+  }, [apiFetch, user])
 
   useEffect(() => {
     const next = parseCategoryFilter(searchParams.get('category'))
@@ -552,9 +551,7 @@ function SearchPageClient() {
       setListsLoading(true)
       setListsError(null)
 
-      const response = await fetch(
-        `/api/lists?userId=${encodeURIComponent(user.email)}`,
-      )
+      const response = await apiFetch('/api/lists')
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
         throw new Error(payload?.error ?? 'Unable to load lists.')
@@ -579,11 +576,10 @@ function SearchPageClient() {
     if (!user || !addItem?.provider || !addItem?.providerId) return
     setAddSavingListId(listId)
     try {
-      const response = await fetch(`/api/lists/${listId}/items`, {
+      const response = await apiFetch(`/api/lists/${listId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user.email,
           media: {
             provider: addItem.provider,
             providerId: addItem.providerId,
@@ -626,11 +622,10 @@ function SearchPageClient() {
 
     setCreateAndAddSaving(true)
     try {
-      const createRes = await fetch('/api/lists', {
+      const createRes = await apiFetch('/api/lists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user.email,
           title,
           description: newListDescription.trim(),
         }),
@@ -676,12 +671,10 @@ function SearchPageClient() {
     setRateLoading(true)
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/list?provider=${encodeURIComponent(
           item.provider,
-        )}&sourceId=${encodeURIComponent(
-          item.providerId,
-        )}&userId=${encodeURIComponent(user.email)}`,
+        )}&sourceId=${encodeURIComponent(item.providerId)}`,
       )
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
@@ -712,11 +705,10 @@ function SearchPageClient() {
     if (!user || !rateItem?.provider || !rateItem?.providerId) return
     setRateSaving(true)
     try {
-      const response = await fetch('/api/list', {
+      const response = await apiFetch('/api/list', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user.email,
           media: {
             provider: rateItem.provider,
             providerId: rateItem.providerId,

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase-server'
+import { getAuthenticatedUserId } from '@/lib/supabase-auth-server'
 
 type ListRow = {
   id: string
@@ -9,11 +10,9 @@ type ListRow = {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const userId = searchParams.get('userId')
-
+  const userId = await getAuthenticatedUserId(request)
   if (!userId) {
-    return NextResponse.json({ error: 'Missing userId.' }, { status: 400 })
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
   }
 
   try {
@@ -38,19 +37,18 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const payload = (await request.json()) as {
-    userId?: string
     title?: string
     description?: string
   }
 
-  const userId = payload.userId?.trim()
   const title = payload.title?.trim()
   const description = payload.description?.trim()
 
+  const userId = await getAuthenticatedUserId(request)
   if (!userId || !title) {
     return NextResponse.json(
-      { error: 'Missing userId or title.' },
-      { status: 400 },
+      { error: userId ? 'Missing title.' : 'Unauthorized.' },
+      { status: userId ? 400 : 401 },
     )
   }
 

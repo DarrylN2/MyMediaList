@@ -62,7 +62,7 @@ const CATEGORY_GROUPS: Array<{
 ]
 
 export default function Home() {
-  const { user, beginAppLoading, endAppLoading } = useAuth()
+  const { user, apiFetch, beginAppLoading, endAppLoading } = useAuth()
   const [entries, setEntries] = useState<DashboardEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -71,7 +71,7 @@ export default function Home() {
   const [demoError, setDemoError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!user?.email) {
+    if (!user) {
       setEntries([])
       setError(null)
       setLoading(false)
@@ -85,10 +85,9 @@ export default function Home() {
 
     const load = async () => {
       try {
-        const response = await fetch(
-          `/api/entries?userId=${encodeURIComponent(user.email)}`,
-          { signal: controller.signal },
-        )
+        const response = await apiFetch('/api/entries', {
+          signal: controller.signal,
+        })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
           throw new Error(payload?.error ?? 'Unable to load entries.')
@@ -106,10 +105,10 @@ export default function Home() {
 
     void load()
     return () => controller.abort()
-  }, [beginAppLoading, endAppLoading, user?.email])
+  }, [apiFetch, beginAppLoading, endAppLoading, user])
 
   useEffect(() => {
-    if (user?.email) {
+    if (user) {
       setDemoEntries([])
       setDemoError(null)
       setDemoLoading(false)
@@ -137,9 +136,9 @@ export default function Home() {
     return () => {
       active = false
     }
-  }, [user?.email])
+  }, [user])
 
-  const entriesSource = user?.email ? entries : demoEntries
+  const entriesSource = user ? entries : demoEntries
 
   const entriesByCreated = useMemo(() => {
     return [...entriesSource].sort(
@@ -341,22 +340,22 @@ export default function Home() {
 
   return (
     <div className="space-y-8 pb-6">
-      {user?.email && error ? (
+      {user && error ? (
         <div className="rounded-2xl border border-border bg-card/80 p-4 text-sm text-muted-foreground">
           {error}
         </div>
       ) : null}
-      {!user?.email && demoError ? (
+      {!user && demoError ? (
         <div className="rounded-2xl border border-border bg-card/80 p-4 text-sm text-muted-foreground">
           {demoError}
         </div>
       ) : null}
-      {user?.email && loading && !entries.length ? (
+      {user && loading && !entries.length ? (
         <div className="rounded-2xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
           Loading your dashboard...
         </div>
       ) : null}
-      {!user?.email && demoLoading && !demoEntries.length ? (
+      {!user && demoLoading && !demoEntries.length ? (
         <div className="rounded-2xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
           Loading demo dashboard...
         </div>
