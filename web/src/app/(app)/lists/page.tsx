@@ -39,6 +39,7 @@ import { useAuth } from '@/context/AuthContext'
 import {
   buildDemoRatedItems,
   ensureDemoState,
+  removeDemoEntry,
   updateDemoEntry,
 } from '@/data/demoStore'
 import type { EntryStatus, MediaProvider, MediaType } from '@/types'
@@ -126,6 +127,7 @@ export default function ListsPage() {
   const [ratedItems, setRatedItems] = useState<RatedItem[]>([])
   const [ratedLoading, setRatedLoading] = useState(false)
   const [ratedError, setRatedError] = useState<string | null>(null)
+  const [ratedRemovingKey, setRatedRemovingKey] = useState<string | null>(null)
   const [demoLists, setDemoLists] = useState<
     Array<{
       id: string
@@ -481,6 +483,9 @@ export default function ListsPage() {
 
   const ratedItemsSource = user ? ratedItems : demoRatedItems
 
+  const buildRatedKey = (item: RatedItem) =>
+    `${item.provider}:${item.type}:${item.providerId}`
+
   const visibleRatedItems = useMemo(() => {
     const q = ratedQuery.trim().toLowerCase()
 
@@ -576,6 +581,49 @@ export default function ListsPage() {
     if (!res.ok) {
       const payload = await res.json().catch(() => null)
       throw new Error(payload?.error ?? 'Unable to save changes.')
+    }
+  }
+
+  const handleRemoveRatedItem = async (item: RatedItem) => {
+    const key = buildRatedKey(item)
+    if (ratedRemovingKey === key) return
+
+    setRatedRemovingKey(key)
+
+    if (!user) {
+      const nextState = removeDemoEntry({
+        provider: item.provider as MediaProvider,
+        providerId: item.providerId,
+        type: item.type,
+      })
+      if (nextState) {
+        setDemoLists(toDemoListSummaries(nextState.lists))
+        setDemoRatedItems(buildDemoRatedItems(nextState.entries))
+      }
+      setRatedRemovingKey(null)
+      return
+    }
+
+    const prev = ratedItems
+    setRatedItems((items) => items.filter((x) => buildRatedKey(x) !== key))
+
+    try {
+      const res = await apiFetch(
+        `/api/entries?provider=${encodeURIComponent(
+          item.provider,
+        )}&providerId=${encodeURIComponent(
+          item.providerId,
+        )}&type=${encodeURIComponent(item.type)}`,
+        { method: 'DELETE' },
+      )
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.error ?? 'Unable to remove entry.')
+      }
+    } catch {
+      setRatedItems(prev)
+    } finally {
+      setRatedRemovingKey(null)
     }
   }
 
@@ -1240,6 +1288,8 @@ export default function ListsPage() {
                           setRatedItems(prev)
                         }
                       }}
+                      onRemove={() => handleRemoveRatedItem(item)}
+                      busy={ratedRemovingKey === buildRatedKey(item)}
                     />
                   )
                 })}
@@ -1339,6 +1389,8 @@ export default function ListsPage() {
                         setRatedItems(prev)
                       }
                     }}
+                    onRemove={() => handleRemoveRatedItem(item)}
+                    busy={ratedRemovingKey === buildRatedKey(item)}
                   />
                 )
               })}
@@ -1437,6 +1489,8 @@ export default function ListsPage() {
                         setRatedItems(prev)
                       }
                     }}
+                    onRemove={() => handleRemoveRatedItem(item)}
+                    busy={ratedRemovingKey === buildRatedKey(item)}
                   />
                 )
               })}

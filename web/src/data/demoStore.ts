@@ -677,6 +677,34 @@ export function updateDemoEntry(
   return nextState
 }
 
+export function removeDemoEntry(media: {
+  provider: MediaProvider
+  providerId: string
+  type: MediaType
+}) {
+  const state = loadStoredState()
+  if (!state) return null
+  const key = mediaKey(media)
+  const now = new Date().toISOString()
+
+  const entries = state.entries.filter((entry) => mediaKey(entry.media) !== key)
+
+  const lists = state.lists.map((list) => {
+    const nextItems = list.items.filter((item) => mediaKey(item.media) !== key)
+    return nextItems.length === list.items.length
+      ? list
+      : { ...list, items: nextItems, updatedAt: now }
+  })
+
+  const nextState: DemoState = {
+    ...state,
+    entries,
+    lists,
+  }
+  storeState(nextState)
+  return nextState
+}
+
 export function updateDemoListMeta(
   listId: string,
   patch: Partial<{ title: string; description: string }>,

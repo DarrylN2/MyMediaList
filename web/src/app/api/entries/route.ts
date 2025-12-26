@@ -36,6 +36,23 @@ function getEpisodeCount(metadata: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+async function findMediaRow(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  provider: string,
+  providerId: string,
+  type: MediaType,
+) {
+  const { data } = await supabase
+    .from('media_items')
+    .select('id')
+    .eq('source', provider)
+    .eq('source_id', providerId)
+    .eq('type', type)
+    .maybeSingle()
+
+  return data
+}
+
 export async function GET(request: NextRequest) {
   const userId = await getAuthenticatedUserId(request)
   if (!userId) {
@@ -125,6 +142,50 @@ export async function GET(request: NextRequest) {
     console.error('Failed to fetch entries', error)
     return NextResponse.json(
       { error: 'Unable to load entries.' },
+      { status: 500 },
+    )
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const provider = searchParams.get('provider')
+  const providerId = searchParams.get('providerId')
+  const type = searchParams.get('type')
+
+  if (!provider || !providerId || !type) {
+    return NextResponse.json(
+      { error: 'Missing provider, providerId, or type.' },
+      { status: 400 },
+    )
+  }
+
+  const userId = await getAuthenticatedUserId(request)
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
+  }
+
+  try {
+    const supabase = getSupabaseServerClient()
+    const mediaRow = await findMediaRow(supabase, provider, providerId, type)
+
+    if (!mediaRow) {
+      return NextResponse.json({ error: 'Media not found.' }, { status: 404 })
+    }
+
+    const { error } = await supabase
+      .from('user_media')
+      .delete()
+      .eq('user_identifier', userId)
+      .eq('media_id', mediaRow.id)
+
+    if (error) throw error
+
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error('Failed to delete entry', error)
+    return NextResponse.json(
+      { error: 'Unable to delete entry.' },
       { status: 500 },
     )
   }
