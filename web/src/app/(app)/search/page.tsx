@@ -1159,19 +1159,27 @@ function SearchCategorySection({
         </div>
       ) : (
         <div className="space-y-4">
-          {category.items.map((item) => (
-            <SearchResultCard
-              key={item.id}
-              item={item}
-              onAdd={() => onAdd(item)}
-              onRate={() => onRate(item)}
-              onSelect={() => onSelect(item)}
-              isRated={
-                Boolean(item.provider && item.providerId) &&
-                ratedKeys.has(`${item.provider}:${item.providerId}`)
-              }
-            />
-          ))}
+          {category.items.map((item) =>
+            (() => {
+              const key =
+                item.provider && item.providerId
+                  ? `${item.provider}:${item.providerId}`
+                  : null
+              const isRated = Boolean(key && ratedKeys.has(key))
+              const isAdded = Boolean(key && addedKeys.has(key))
+              return (
+                <SearchResultCard
+                  key={item.id}
+                  item={item}
+                  onAdd={() => onAdd(item)}
+                  onRate={() => onRate(item)}
+                  onSelect={() => onSelect(item)}
+                  isRated={isRated}
+                  isAdded={isAdded}
+                />
+              )
+            })(),
+          )}
         </div>
       )}
     </section>
@@ -1577,6 +1585,7 @@ interface SearchResultCardProps {
   onRate: () => void
   onSelect: () => void
   isRated: boolean
+  isAdded: boolean
 }
 
 function SearchResultCard({
@@ -1585,6 +1594,7 @@ function SearchResultCard({
   onRate,
   onSelect,
   isRated,
+  isAdded,
 }: SearchResultCardProps) {
   const TypeIcon = typeIconMap[item.type]
 
@@ -1665,13 +1675,14 @@ function SearchResultCard({
         <Button
           type="button"
           size="sm"
+          variant={isAdded ? 'outline' : 'default'}
           onClick={(event) => {
             event.stopPropagation()
             onAdd()
           }}
           className="w-full rounded-full text-sm font-semibold"
         >
-          + Add to list
+          {isAdded ? '+ Added' : '+ Add to list'}
         </Button>
       </div>
     </div>
