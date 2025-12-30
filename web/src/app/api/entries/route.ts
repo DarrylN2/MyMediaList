@@ -3,6 +3,19 @@ import { getSupabaseServerClient } from '@/lib/supabase-server'
 import { getAuthenticatedUserId } from '@/lib/supabase-auth-server'
 import type { EntryStatus, MediaProvider, MediaType } from '@/types'
 
+const MEDIA_TYPES = [
+  'movie',
+  'tv',
+  'anime',
+  'game',
+  'song',
+  'album',
+] as const satisfies readonly MediaType[]
+
+function isMediaType(value: string): value is MediaType {
+  return (MEDIA_TYPES as readonly string[]).includes(value)
+}
+
 type EntryItem = {
   status: EntryStatus
   rating: number | null
@@ -158,6 +171,10 @@ export async function DELETE(request: NextRequest) {
       { error: 'Missing provider, providerId, or type.' },
       { status: 400 },
     )
+  }
+
+  if (!isMediaType(type)) {
+    return NextResponse.json({ error: 'Invalid type.' }, { status: 400 })
   }
 
   const userId = await getAuthenticatedUserId(request)

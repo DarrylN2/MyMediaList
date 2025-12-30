@@ -3,6 +3,8 @@ console.log('[MyMediaList] loading next.config.js from', __dirname)
 const nextConfig = {
   // Ensure build always has a generator function; returning null lets Next pick a safe fallback.
   generateBuildId: async () => null,
+  // Keep file tracing consistent when deploying from a subdirectory (e.g. Vercel Root Directory = `web`).
+  outputFileTracingRoot: __dirname,
   turbopack: {
     // This repo contains multiple lockfiles (root + web/). Pin Turbopack to this package.
     root: __dirname,
